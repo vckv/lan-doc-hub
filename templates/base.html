@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LAN Doc Hub{% endblock %}</title>
+
+    <!-- Bootstrap 4 CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- 顶部导航栏 -->
+<nav class="navbar navbar-expand-md navbar-light bg-white px-3">
+    <a class="navbar-brand" href="{{ url_for('index') }}">LAN Doc Hub</a>
+
+    <!-- 搜索栏（占位，后续实现搜索功能） -->
+    <div class="search-box mx-auto d-none d-md-block">
+        <span class="search-icon">&#128269;</span>
+        <input class="form-control" type="text" placeholder="搜索文件名..." disabled>
+    </div>
+
+    <ul class="navbar-nav ml-auto">
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="user-info">未登录</span>
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="userDropdown">
+                <a class="dropdown-item" href="#">退出登录</a>
+            </div>
+        </li>
+    </ul>
+</nav>
+
+<!-- 主内容区 -->
+<div class="main-wrapper">
+    <!-- 左侧栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">&#128193; 文件夹</div>
+        {% block sidebar %}
+        <div class="sidebar-placeholder">
+            <div class="icon">&#128194;</div>
+            文件夹树加载中...
+        </div>
+        {% endblock %}
+    </aside>
+
+    <!-- 主内容 -->
+    <main class="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+</div>
+
+<!-- 页脚 -->
+<footer class="footer">
+    &copy; 2026 LAN Doc Hub
+</footer>
+
+<!-- jQuery -->
+<script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+<!-- Bootstrap 4 JS -->
+<script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
