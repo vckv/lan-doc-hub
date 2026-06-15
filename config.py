@@ -19,7 +19,7 @@ class Config:
         'UPLOAD_FOLDER',
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     )
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB 默认上限（压缩包不受此限制）
+    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB 默认上传上限
 
     # 会话
     SESSION_COOKIE_HTTPONLY = True

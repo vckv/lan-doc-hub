@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, render_template
 from models import db
 
@@ -11,7 +13,6 @@ def create_app():
     db.init_app(app)
 
     # 确保上传目录存在
-    import os
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
     # 创建所有数据库表（首次运行自动建表，已存在则跳过）
@@ -34,4 +35,5 @@ def register_routes(app):
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(host='0.0.0.0', port=5000, debug=debug_mode)
