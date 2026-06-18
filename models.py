@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 
 db = SQLAlchemy()
 
@@ -22,18 +23,27 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     failed_attempts = db.Column(db.Integer, nullable=False, default=0)
     locked_until = db.Column(db.DateTime, nullable=True)
+
+    # === 审计字段（F1-A 新增） ===
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_ip    = db.Column(db.String(45), nullable=False, default='127.0.0.1')
+    updated_at    = db.Column(db.DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
     download_path = db.Column(db.String(512), nullable=True)
 
     # v2 预留字段
     is_approver = db.Column(db.Boolean, nullable=False, default=False)
     approval_level = db.Column(db.Integer, nullable=True)
 
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=func.now())
 
     # 关系
     uploaded_files = db.relationship('File', backref='uploader', lazy=True,
                                      foreign_keys='File.uploader_id')
     uploaded_versions = db.relationship('FileVersion', backref='uploader', lazy=True)
+
+    # 审计自引用关系
+    created_by = db.relationship('User', remote_side=[id], backref='created_users', lazy=True)
 
     def __repr__(self):
         return f'<User {self.username}>'
