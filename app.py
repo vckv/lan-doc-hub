@@ -160,6 +160,9 @@ def create_app(config_overrides=None):
     from routes.folders import folders_bp
     app.register_blueprint(folders_bp)
 
+    from routes.upload_validation import upload_validation_bp
+    app.register_blueprint(upload_validation_bp)
+
     # 注册路由
     register_routes(app)
 
