@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAN Doc Hub - 初始化</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        .setup-container { max-width: 460px; margin: 80px auto; }
+        .setup-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+        .setup-card h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+        .setup-card .sub { color: #6b7280; font-size: 0.85rem; margin-bottom: 24px; }
+    </style>
+</head>
+<body style="background:#f5f6fa;">
+
+<div class="setup-container">
+    <div class="setup-card">
+        <h2>LAN Doc Hub 首次初始化</h2>
+        <p class="sub">创建系统首个管理员账号</p>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">{{ error }}</div>
+        {% endif %}
+
+        {% if success %}
+        <div class="alert alert-success" role="alert">{{ success }}</div>
+        {% else %}
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="form-group">
+                <label for="username">账号</label>
+                <input type="text" class="form-control" id="username" name="username"
+                       placeholder="4-32 位字母数字下划线" maxlength="32" required>
+            </div>
+
+            <div class="form-group">
+                <label for="display_name">显示名称</label>
+                <input type="text" class="form-control" id="display_name" name="display_name"
+                       placeholder="2-20 个字符" maxlength="20" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" class="form-control" id="password" name="password"
+                       placeholder="8-20 位，至少包含三类字符" maxlength="20" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password_confirm">确认密码</label>
+                <input type="password" class="form-control" id="password_confirm" name="password_confirm"
+                       placeholder="再次输入密码" maxlength="20" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block mt-3">创建管理员账号</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+</body>
+</html>

@@ -25,15 +25,32 @@
     </div>
 
     <ul class="navbar-nav ml-auto">
+        {% if session.get('user_id') %}
+        {# ── 已登录状态 ── #}
         <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="user-info">未登录</span>
+                <span class="user-info">{{ session.get('display_name', session.get('username', '用户')) }}</span>
+                {% if session.get('user_role') == 'admin' %}
+                <span class="badge badge-primary ml-1">管理员</span>
+                {% endif %}
             </a>
             <div class="dropdown-menu dropdown-menu-right" aria-labelledby="userDropdown">
-                <a class="dropdown-item" href="#">退出登录</a>
+                <a class="dropdown-item disabled" href="#">
+                    账号：{{ session.get('username', '') }}
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="{{ url_for('auth.logout') }}">退出登录</a>
             </div>
         </li>
+        {% else %}
+        {# ── 未登录状态 ── #}
+        <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('auth.login') }}">
+                <span class="user-info">未登录</span>
+            </a>
+        </li>
+        {% endif %}
     </ul>
 </nav>
 

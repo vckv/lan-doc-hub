@@ -1,21 +1,30 @@
 @echo off
-chcp 65001 >nul
 title LAN Doc Hub
 
 echo.
 echo ========================================
-echo   LAN Doc Hub æ­£åœ¨å¯åŠ¨...
+echo   LAN Doc Hub ÕıÔÚÆô¶¯...
 echo ========================================
 echo.
-echo æœåŠ¡å¯åŠ¨åï¼Œè¯·åœ¨æµè§ˆå™¨ä¸­è®¿é—®ï¼š
+echo ·şÎñÆô¶¯ºó£¬ÇëÔÚä¯ÀÀÆ÷ÖĞ·ÃÎÊ£º
 echo.
-echo   æœ¬æœºè®¿é—®: http://127.0.0.1:5000
-echo   å±€åŸŸç½‘å†…: http://ä½ çš„IPåœ°å€:5000
+echo   ±¾»ú·ÃÎÊ: http://127.0.0.1:5000
+echo   ¾ÖÓòÍøÄÚ: http://ÄãµÄIPµØÖ·:5000
 echo.
-echo æŒ‰ Ctrl+C æˆ–å…³é—­æ­¤çª—å£å³å¯åœæ­¢æœåŠ¡
+echo °´ Ctrl+C »ò¹Ø±Õ´Ë´°¿Ú¼´¿ÉÍ£Ö¹·şÎñ
 echo ========================================
 echo.
 
+echo ÕıÔÚ¼ì²éÒÀÀµ...
+if exist vendor\*.whl (
+    echo   [ÀëÏßÄ£Ê½] ´Ó vendor/ ±¾µØ°²×°...
+    pip install -r requirements.txt --no-index --find-links=vendor/ -q
+) else (
+    echo   [ÔÚÏßÄ£Ê½] vendor/ Îª¿Õ£¬´ÓÍøÂç°²×°...
+    pip install -r requirements.txt -q
+)
+echo.
+echo ÕıÔÚÆô¶¯ LAN Doc Hub...
 python app.py
 
 pause

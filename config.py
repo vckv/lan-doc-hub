@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 
 class Config:
@@ -21,6 +22,15 @@ class Config:
     )
     MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB 默认上传上限
 
-    # 会话
+    # 会话安全（F1-B 硬化）
     SESSION_COOKIE_HTTPONLY = True
-    PERMANENT_SESSION_LIFETIME = 86400  # 24 小时
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False  # 内网 HTTP 环境，不上 HTTPS
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
+
+    # 密码策略（F1-B 新增，可配置回滚）
+    # 回滚至简易策略（6-12 位，无复杂度要求）：
+    #   将 MIN 改为 6、MAX 改为 12、REQUIRE_COMPLEXITY 改为 False
+    PASSWORD_MIN_LENGTH = 8
+    PASSWORD_MAX_LENGTH = 20
+    PASSWORD_REQUIRE_COMPLEXITY = True

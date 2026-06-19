@@ -1,0 +1,1 @@
+"""路由蓝图包 —— F1 三子系统：bootstrap / auth / admin"""

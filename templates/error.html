@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ code }} - LAN Doc Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        .error-container { max-width: 500px; margin: 100px auto; text-align: center; }
+        .error-code { font-size: 5rem; font-weight: 700; color: #dc3545; line-height: 1; margin-bottom: 8px; }
+        .error-msg { font-size: 1.05rem; color: #6b7280; margin-bottom: 24px; }
+    </style>
+</head>
+<body style="background:#f5f6fa;">
+
+<div class="error-container">
+    <div class="error-code">{{ code }}</div>
+    <p class="error-msg">{{ message }}</p>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">返回首页</a>
+</div>
+
+</body>
+</html>
