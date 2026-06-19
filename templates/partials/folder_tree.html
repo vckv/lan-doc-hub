@@ -1,7 +1,7 @@
 {# 文件夹树递归模板片段 #}
 {# F2-1：Jinja2 递归宏，每个节点含展开/收起图标 #}
 {% macro render_node(node) %}
-<li class="tree-node" data-folder-id="{{ node.id }}"
+<li class="tree-node" data-folder-id="{{ node.id }}" data-project-id="{{ node.project_id }}"
     {% if node.is_project_root %}data-is-root="true"{% endif %}>
     <div class="tree-item">
         <span class="tree-toggle">{% if node.children %}▶{% else %}·{% endif %}</span>

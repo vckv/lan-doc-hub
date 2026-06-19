@@ -70,10 +70,12 @@ var UploadIntercept = (function () {
         _onCorrect = onCorrect;
         _onShortcut = onShortcut;
 
+        var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
         $.ajax({
             url: '/api/validate-upload',
             method: 'POST',
             contentType: 'application/json',
+            headers: { 'X-CSRF-Token': csrfToken },
             data: JSON.stringify({
                 folder_id: folderId,
                 project_id: declaredProjectId,

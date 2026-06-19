@@ -163,6 +163,15 @@ def create_app(config_overrides=None):
     from routes.upload_validation import upload_validation_bp
     app.register_blueprint(upload_validation_bp)
 
+    from routes.files import files_bp
+    app.register_blueprint(files_bp)
+
+    from routes.projects import projects_bp
+    app.register_blueprint(projects_bp)
+
+    # 设置上传限制（F3-1）
+    app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
+
     # 注册路由
     register_routes(app)
 

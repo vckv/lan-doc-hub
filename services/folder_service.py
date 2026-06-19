@@ -193,3 +193,38 @@ def _collect_descendant_ids(folder_id):
     for child in children:
         ids.extend(_collect_descendant_ids(child.id))
     return ids
+
+
+def get_ancestors(folder_id):
+    """获取文件夹的祖先链（从根到自身，含自身）
+
+    沿 parent_id 上溯至 is_project_root=True 的节点，
+    然后反转数组得到从根到目标文件夹的顺序。
+
+    Returns:
+        list[dict]: [{id, name, is_project_root}, ...]，失败返回空列表
+    """
+    chain = []
+    current = db.session.get(Folder, folder_id)
+    if current is None:
+        return chain
+
+    chain.append({
+        'id': current.id,
+        'name': current.name,
+        'is_project_root': current.is_project_root,
+    })
+
+    # 沿 parent_id 上溯
+    while current.parent_id is not None:
+        current = db.session.get(Folder, current.parent_id)
+        if current is None:
+            break
+        chain.append({
+            'id': current.id,
+            'name': current.name,
+            'is_project_root': current.is_project_root,
+        })
+
+    chain.reverse()  # 从根到目标
+    return chain

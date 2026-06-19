@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}LAN Doc Hub{% endblock %}</title>
 
@@ -57,7 +58,7 @@
 <!-- 主内容区 -->
 <div class="main-wrapper">
     <!-- 左侧栏 -->
-    <aside class="sidebar">
+    <aside class="sidebar" data-is-admin="{{ 'true' if session.get('user_role') == 'admin' else 'false' }}">
         <div class="sidebar-header">&#128193; 文件夹</div>
         {% block sidebar %}
         <div class="sidebar-placeholder">
@@ -65,12 +66,29 @@
             文件夹树加载中...
         </div>
         {% endblock %}
+        {% if session.get('user_role') == 'admin' %}
+        <div class="sidebar-footer">
+            <button class="btn btn-outline-secondary btn-sm" id="btnCreate">
+                &#128193; 新增项目
+            </button>
+        </div>
+        {% endif %}
     </aside>
 
     <!-- 主内容 -->
     <main class="main-content">
-        {% block content %}
-        {% endblock %}
+        <!-- 工具栏（F3-1） -->
+        <div class="content-toolbar" id="contentToolbar">
+            <span class="breadcrumb-folder" id="breadcrumbFolder">&#128193; 欢迎</span>
+            <button type="button" class="btn btn-primary btn-sm btn-upload" id="btnUploadFile">
+                &#128206; 上传文件
+            </button>
+        </div>
+        <!-- 文件列表区 -->
+        <div id="fileListContainer">
+            {% block content %}
+            {% endblock %}
+        </div>
     </main>
 </div>
 
@@ -88,6 +106,10 @@
 <script src="{{ url_for('static', filename='js/folder_tree.js') }}"></script>
 <!-- 跨项目上传拦截模态框 JS（全局默认加载，F2-2） -->
 <script src="{{ url_for('static', filename='js/upload_intercept_modal.js') }}"></script>
+<!-- 上传流程 JS（F3-1） -->
+<script src="{{ url_for('static', filename='js/upload_handler.js') }}"></script>
+<!-- 文件视图 JS（F3-1） -->
+<script src="{{ url_for('static', filename='js/file_view.js') }}"></script>
 
 {% block scripts %}{% endblock %}
 </body>

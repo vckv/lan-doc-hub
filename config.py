@@ -20,7 +20,7 @@ class Config:
         'UPLOAD_FOLDER',
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     )
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB 默认上传上限
+    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB 默认上传上限（路由层覆写为 50MB）
 
     # 会话安全（F1-B 硬化）
     SESSION_COOKIE_HTTPONLY = True
@@ -40,3 +40,21 @@ class Config:
         'SETUP_KEY_FILE',
         os.path.join(os.path.dirname(os.path.abspath(__file__)), '.setup_key')
     )
+
+    # ── F3-1 文件类型白名单 ──
+    ALLOWED_EXTENSIONS = {
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+        'txt', 'csv', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp',
+    }
+    ALLOWED_MIME_TYPES = {
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain',
+        'text/csv',
+        'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
+    }

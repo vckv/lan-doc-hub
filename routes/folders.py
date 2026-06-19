@@ -7,6 +7,7 @@ from services.folder_service import (
     create_folder,
     rename_folder,
     delete_folder,
+    get_ancestors,
 )
 
 folders_bp = Blueprint('folders', __name__, url_prefix='/api/folders')
@@ -112,3 +113,16 @@ def api_delete_folder(folder_id):
         return jsonify({'success': False, 'errors': result['errors']}), status
 
     return jsonify({'success': True})
+
+
+@folders_bp.route('/<int:folder_id>/ancestors')
+def api_get_ancestors(folder_id):
+    """GET /api/folders/<id>/ancestors → 返回祖先链（从根到自身）"""
+    _require_login()
+
+    ancestors = get_ancestors(folder_id)
+
+    if not ancestors:
+        return jsonify({'success': False, 'errors': {'folder_id': ['文件夹不存在']}}), 404
+
+    return jsonify({'success': True, 'ancestors': ancestors})

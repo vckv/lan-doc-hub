@@ -1,0 +1,36 @@
+{# 上传信息弹窗（F3-1，备用服务器端渲染方案） #}
+{# 主方案由 upload_handler.js 动态注入 #}
+<div class="modal fade" id="uploadInfoModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">&#128228; 文件上传</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>文件名称</label>
+                    <input type="text" class="form-control-plaintext" id="modalFileName" readonly>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label>文件编号</label>
+                        <input type="text" class="form-control form-control-sm" id="modalFileNumber" readonly>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label>上传者</label>
+                        <input type="text" class="form-control form-control-sm" id="modalUploader" readonly>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>所属项目</label>
+                    <select class="form-control form-control-sm" id="modalProjectId"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" id="modalConfirmUpload">确认上传</button>
+            </div>
+        </div>
+    </div>
+</div>
