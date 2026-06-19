@@ -79,13 +79,13 @@ class TestAuthenticateUser:
         with app.app_context():
             result = authenticate_user('testuser', 'WrongPass1!')
             assert not result['success']
-            assert 'password' in result['errors']
+            assert result['errors']['error_type'] == 'wrong_password'
 
     def test_nonexistent_user_returns_error(self, app):
         with app.app_context():
             result = authenticate_user('nobody', 'AnyPass1!')
             assert not result['success']
-            assert 'username' in result['errors']
+            assert result['errors']['error_type'] == 'user_not_found'
 
     def test_inactive_user_rejected(self, app):
         _create_test_user(app, is_active=True)
@@ -222,10 +222,11 @@ class TestLogoutRoute:
 
 class TestNavbarState:
 
-    def test_navbar_shows_login_link_when_not_logged_in(self, client):
+    def test_navbar_shows_login_link_when_not_logged_in(self, app, client):
+        _create_test_user(app)
         resp = client.get('/')
         html = resp.get_data(as_text=True)
-        assert '未登录' in html
+        assert '点击登录' in html
         assert '/login' in html
 
     def test_navbar_shows_display_name_when_logged_in(self, app, client):

@@ -25,16 +25,44 @@ def login():
 
         if not username or not password:
             return render_template('login.html',
+                                   username=username,
                                    error='请输入用户名和密码')
 
-        result = authenticate_user(
-            username=username,
-            password=password,
-            ip_address=request.remote_addr or '127.0.0.1',
-        )
+        # ── 追踪相同密码提交次数（用于大小写提示）──
+        same_password_count = 0
+        last_username = session.get('login_last_username', '')
+        last_password = session.get('login_last_password', '')
+        if username == last_username and password == last_password:
+            same_password_count = session.get('login_same_count', 0) + 1
+        session['login_last_username'] = username
+        session['login_last_password'] = password
+        session['login_same_count'] = same_password_count
+
+        try:
+            result = authenticate_user(
+                username=username,
+                password=password,
+                ip_address=request.remote_addr or '127.0.0.1',
+            )
+        except Exception as exc:
+            import traceback
+            from flask import current_app
+            current_app.logger.error(
+                'authenticate_user 异常 — %s: %s\n%s',
+                type(exc).__name__, str(exc), traceback.format_exc()
+            )
+            return render_template(
+                'login.html',
+                username=username,
+                error=f'系统错误：{type(exc).__name__} — {exc}。请查看控制台获取详细信息。',
+            )
 
         if result['success']:
             user = result['user']
+            # ── 登录成功，清理追踪数据 ──
+            session.pop('login_last_username', None)
+            session.pop('login_last_password', None)
+            session.pop('login_same_count', None)
             session.permanent = True
             session['user_id'] = user.id
             session['username'] = user.username
@@ -42,15 +70,18 @@ def login():
             session['user_role'] = user.role
             return redirect(url_for('index'))
 
-        # 取第一个错误信息
-        error = ''
-        for field_msgs in result['errors'].values():
-            if field_msgs:
-                error = field_msgs[0]
-                break
-        return render_template('login.html', error=error)
+        # ── 构造错误消息 ──
+        error_type = result['errors'].get('error_type', '')
+        message = result['errors'].get('message', '用户名或密码错误')
 
-    return render_template('login.html')
+        # 密码错误 + 相同密码 ≥2 次 → 大小写提示
+        if error_type == 'wrong_password' and same_password_count >= 2:
+            message = '密码错误，请确认大小写后输入'
+
+        return render_template('login.html', username=username, error=message)
+
+    return render_template('login.html',
+                           username=request.args.get('username', ''))
 
 
 @auth_bp.route('/logout')

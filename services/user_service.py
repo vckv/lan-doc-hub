@@ -2,13 +2,10 @@
 
 import re
 
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.exc import IntegrityError
 
 from models import db, User
-
-# ── 密码哈希上下文 ──
-pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 
 
 # ═══════════════════════════════════════════
@@ -131,8 +128,14 @@ def create_user(username, display_name, password, role,
     if errors:
         return {'success': False, 'errors': errors, 'user': None}
 
-    # 6. 密码哈希（passlib）
-    password_hash = pwd_context.hash(password)
+    # ── bcrypt 72 字节硬限制检查 ──
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        errors['password'] = ['密码过长（bcrypt 限制 72 字节），请减少中文字符或特殊符号']
+        return {'success': False, 'errors': errors, 'user': None}
+
+    # 6. 密码哈希（bcrypt 原生）
+    password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
 
     # 7. 构建对象并入库
     user = User(

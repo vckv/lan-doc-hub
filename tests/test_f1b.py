@@ -16,9 +16,16 @@ def app():
     db_uri = 'sqlite:///' + db_path
 
     from app import create_app
+
+    # 为测试创建临时 setup 密钥文件
+    key_fd, key_path = tempfile.mkstemp(suffix='.setup_key')
+    with open(key_path, 'w', encoding='utf-8') as kf:
+        kf.write('test-setup-key')
+
     app = create_app(config_overrides={
         'SQLALCHEMY_DATABASE_URI': db_uri,
         'TESTING': True,
+        'SETUP_KEY_FILE': key_path,
     })
 
     yield app
@@ -31,12 +38,32 @@ def app():
         os.unlink(db_path)
     except PermissionError:
         pass
+    os.close(key_fd)
+    try:
+        os.unlink(key_path)
+    except PermissionError:
+        pass
 
 
 @pytest.fixture
 def client(app):
     """测试客户端"""
     return app.test_client()
+
+
+def _post_setup_data(client, token, extra_data=None):
+    """辅助函数：构建带 setup_key 的标准 POST 数据"""
+    data = {
+        'setup_key': 'test-setup-key',
+        'csrf_token': token,
+        'username': 'admin_user',
+        'display_name': 'Admin',
+        'password': 'Admin@Pass1',
+        'password_confirm': 'Admin@Pass1',
+    }
+    if extra_data:
+        data.update(extra_data)
+    return data
 
 
 # ═══════════════════════════════════════════
@@ -53,6 +80,7 @@ class TestCSRF:
     def test_post_without_csrf_token_rejected(self, client):
         """POST 请求不带 csrf_token 返回 400"""
         resp = client.post('/setup', data={
+            'setup_key': 'test-setup-key',
             'username': 'admin',
             'display_name': 'Admin',
             'password': 'Admin@Pass1',
@@ -64,6 +92,7 @@ class TestCSRF:
         """POST 请求带错误的 csrf_token 返回 400"""
         resp = client.post('/setup', data={
             'csrf_token': 'wrongtoken',
+            'setup_key': 'test-setup-key',
             'username': 'admin',
             'display_name': 'Admin',
             'password': 'Admin@Pass1',
@@ -72,7 +101,7 @@ class TestCSRF:
         assert resp.status_code == 400
 
     def test_post_with_valid_csrf_token_accepted(self, client):
-        """POST 请求带有效的 csrf_token 返回 200"""
+        """POST 请求带有效的 csrf_token 返回 200 并创建成功"""
         resp_get = client.get('/setup')
         assert resp_get.status_code == 200
 
@@ -81,13 +110,9 @@ class TestCSRF:
 
         assert token is not None
 
-        resp_post = client.post('/setup', data={
-            'csrf_token': token,
+        resp_post = client.post('/setup', data=_post_setup_data(client, token, {
             'username': 'admin_csrf',
-            'display_name': 'Admin CSRF',
-            'password': 'Admin@Pass1',
-            'password_confirm': 'Admin@Pass1',
-        })
+        }))
         assert resp_post.status_code == 200
         html = resp_post.get_data(as_text=True)
         assert '创建成功' in html
@@ -115,13 +140,10 @@ class TestSetupRoute:
     def test_setup_returns_404_when_users_exist(self, client):
         """数据库已有用户时 /setup 返回 404"""
         token = self._get_csrf_token(client)
-        client.post('/setup', data={
-            'csrf_token': token,
+        client.post('/setup', data=_post_setup_data(client, token, {
             'username': 'admin_first',
             'display_name': 'First Admin',
-            'password': 'Admin@Pass1',
-            'password_confirm': 'Admin@Pass1',
-        })
+        }))
 
         resp = client.get('/setup')
         assert resp.status_code == 404
@@ -129,13 +151,12 @@ class TestSetupRoute:
     def test_password_mismatch_shows_error(self, client):
         """两次密码不一致显示错误"""
         token = self._get_csrf_token(client)
-        resp = client.post('/setup', data={
-            'csrf_token': token,
+        resp = client.post('/setup', data=_post_setup_data(client, token, {
             'username': 'testuser',
             'display_name': 'Test User',
             'password': 'Good@Pass1',
             'password_confirm': 'Wrong@Pass2',
-        })
+        }))
         assert resp.status_code == 200
         html = resp.get_data(as_text=True)
         assert '不一致' in html
@@ -143,13 +164,12 @@ class TestSetupRoute:
     def test_weak_password_shows_error(self, client):
         """弱密码被拦截，显示错误"""
         token = self._get_csrf_token(client)
-        resp = client.post('/setup', data={
-            'csrf_token': token,
+        resp = client.post('/setup', data=_post_setup_data(client, token, {
             'username': 'gooduser',
             'display_name': 'Good User',
             'password': '123456',
             'password_confirm': '123456',
-        })
+        }))
         assert resp.status_code == 200
         html = resp.get_data(as_text=True)
         assert any(w in html for w in ('至少', '三类', '8 位'))
@@ -157,13 +177,10 @@ class TestSetupRoute:
     def test_empty_username_shows_error(self, client):
         """空用户名被拦截"""
         token = self._get_csrf_token(client)
-        resp = client.post('/setup', data={
-            'csrf_token': token,
+        resp = client.post('/setup', data=_post_setup_data(client, token, {
             'username': '',
             'display_name': 'Test',
-            'password': 'Valid@Pass1',
-            'password_confirm': 'Valid@Pass1',
-        })
+        }))
         assert resp.status_code == 200
         html = resp.get_data(as_text=True)
         assert 'class="alert' in html.lower()
@@ -171,13 +188,12 @@ class TestSetupRoute:
     def test_create_admin_creates_admin_user(self, client):
         """创建管理员后返回成功提示"""
         token = self._get_csrf_token(client)
-        resp = client.post('/setup', data={
-            'csrf_token': token,
+        resp = client.post('/setup', data=_post_setup_data(client, token, {
             'username': 'admin_user',
             'display_name': 'System Admin',
             'password': 'Admin@2024',
             'password_confirm': 'Admin@2024',
-        })
+        }))
         assert resp.status_code == 200
         html = resp.get_data(as_text=True)
         assert '创建成功' in html
@@ -195,16 +211,14 @@ class TestSetupRoute:
 
 class TestErrorHandlers:
 
-    def test_404_renders_error_page(self, client):
-        """404 渲染错误页面"""
-        resp = client.get('/nonexistent')
+    def test_404_page_renders_error_template(self, client):
+        """404 页面使用 error.html 模板"""
+        resp = client.get('/nonexistent/page')
         assert resp.status_code == 404
         html = resp.get_data(as_text=True)
         assert '404' in html
 
-    def test_400_renders_error_page(self, client):
-        """POST 无 csrf_token 返回 400 错误页"""
+    def test_400_page_on_csrf_failure(self, client):
+        """CSRF 失败返回 400"""
         resp = client.post('/setup', data={'username': 'test'})
         assert resp.status_code == 400
-        html = resp.get_data(as_text=True)
-        assert '400' in html

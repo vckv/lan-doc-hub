@@ -1,13 +1,13 @@
 """F1-A 单元测试：PasswordPolicy、UsernamePolicy、create_user"""
 
 import pytest
+import bcrypt
 
 from models import User
 from services.user_service import (
     PasswordPolicy,
     UsernamePolicy,
     create_user,
-    pwd_context,
 )
 
 
@@ -234,5 +234,5 @@ class TestCreateUser:
             assert result['success']
             user = result['user']
 
-            assert pwd_context.verify('MySecret@123', user.password_hash)
-            assert not pwd_context.verify('WrongPassword', user.password_hash)
+            assert bcrypt.checkpw(b'MySecret@123', user.password_hash.encode('utf-8'))
+            assert not bcrypt.checkpw(b'WrongPassword', user.password_hash.encode('utf-8'))

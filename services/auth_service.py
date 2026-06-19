@@ -2,8 +2,9 @@
 
 from datetime import datetime, timedelta
 
+import bcrypt
+
 from models import db, User
-from services.user_service import pwd_context
 
 
 MAX_FAILED_ATTEMPTS = 5
@@ -19,38 +20,49 @@ def authenticate_user(username, password, ip_address='127.0.0.1'):
         ip_address: 登录来源 IP
 
     Returns:
-        {'success': bool, 'user': User|None, 'errors': dict}
+        {
+            'success': bool,
+            'user': User|None,
+            'errors': {
+                'error_type': 'user_not_found'|'inactive'|'locked'|'wrong_password'|'locked_out',
+                'message': str,
+            }
+        }
     """
     errors = {}
     user = User.query.filter_by(username=username).first()
 
     # ── 1. 用户存在性检查 ──
     if user is None:
-        errors['username'] = ['用户名或密码错误']
+        errors['error_type'] = 'user_not_found'
+        errors['message'] = '该用户名不存在，请确认后重新输入'
         return {'success': False, 'user': None, 'errors': errors}
 
     # ── 2. 账号激活检查 ──
     if not user.is_active:
-        errors['username'] = ['账号已被禁用，请联系管理员']
+        errors['error_type'] = 'inactive'
+        errors['message'] = '账号已被禁用，请联系管理员'
         return {'success': False, 'user': None, 'errors': errors}
 
     # ── 3. 账号锁定检查 ──
     now = datetime.utcnow()
     if user.locked_until and user.locked_until > now:
         remaining = int((user.locked_until - now).total_seconds() // 60)
-        errors['username'] = [f'账号已锁定，请在 {remaining} 分钟后重试']
+        errors['error_type'] = 'locked'
+        errors['message'] = f'账号已锁定，请在 {remaining} 分钟后重试'
         return {'success': False, 'user': None, 'errors': errors}
 
     # ── 4. 密码验证 ──
-    if not pwd_context.verify(password, user.password_hash):
+    if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
         user.failed_attempts += 1
         if user.failed_attempts >= MAX_FAILED_ATTEMPTS:
             user.locked_until = now + LOCK_DURATION
             user.failed_attempts = 0
-            errors['password'] = ['密码错误次数过多，账号已锁定 30 分钟']
+            errors['error_type'] = 'locked_out'
+            errors['message'] = '密码错误次数过多，账号已锁定 30 分钟'
         else:
-            remaining = MAX_FAILED_ATTEMPTS - user.failed_attempts
-            errors['password'] = [f'用户名或密码错误（剩余尝试次数：{remaining}）']
+            errors['error_type'] = 'wrong_password'
+            errors['message'] = '密码错误，请确认后输入'
         db.session.commit()
         return {'success': False, 'user': None, 'errors': errors}
 

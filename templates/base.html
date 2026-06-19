@@ -46,8 +46,8 @@
         {% else %}
         {# ── 未登录状态 ── #}
         <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('auth.login') }}">
-                <span class="user-info">未登录</span>
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('auth.login') }}">
+                点击登录
             </a>
         </li>
         {% endif %}

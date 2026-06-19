@@ -34,3 +34,9 @@ class Config:
     PASSWORD_MIN_LENGTH = 8
     PASSWORD_MAX_LENGTH = 20
     PASSWORD_REQUIRE_COMPLEXITY = True
+
+    # 管理员初始化密钥文件路径（方案 B：控制台打印随机密钥）
+    SETUP_KEY_FILE = os.environ.get(
+        'SETUP_KEY_FILE',
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '.setup_key')
+    )

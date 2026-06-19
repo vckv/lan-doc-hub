@@ -18,7 +18,8 @@
             <div class="form-group">
                 <label for="username">账号</label>
                 <input type="text" class="form-control" id="username" name="username"
-                       placeholder="输入用户名" maxlength="32" required autofocus>
+                       placeholder="输入用户名" maxlength="32" required autofocus
+                       value="{{ username|default('', true) }}">
             </div>
 
             <div class="form-group">
