@@ -111,7 +111,7 @@ def create_app(config_overrides=None):
         if request.method in ('GET', 'HEAD', 'OPTIONS'):
             return
         token = session.get('csrf_token')
-        submitted = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+        submitted = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token') or ''
         if not token or not secrets.compare_digest(token, submitted):
             abort(400, 'CSRF 校验失败，请刷新页面后重试')
 
@@ -156,6 +156,9 @@ def create_app(config_overrides=None):
 
     from routes.auth import auth_bp
     app.register_blueprint(auth_bp)
+
+    from routes.folders import folders_bp
+    app.register_blueprint(folders_bp)
 
     # 注册路由
     register_routes(app)
