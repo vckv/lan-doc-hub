@@ -283,6 +283,17 @@ html, body {
     font-size: 0.85rem;
 }
 
+/* ── 新建弹窗视口均匀居中 ── */
+#createModal .modal-dialog {
+    margin: calc(6vh + 140px) auto 6vh auto;
+}
+
+/* ── 模拟 table-hover 的 hover 态 ── */
+.table .row-hover,
+.table .row-hover:hover {
+    background-color: rgba(0, 0, 0, 0.075) !important;
+}
+
 /* ── 统一新建模态框 ── */
 .create-mode-toggle {
     display: flex;

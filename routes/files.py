@@ -19,6 +19,21 @@ def api_pre_number():
     return jsonify({'success': True, 'file_number': generate_file_number()})
 
 
+@files_bp.route('/next-version')
+@api_login_required
+def api_next_version():
+    """GET /api/files/next-version?filename=xxx&project_id=yyy → 返回下一个版本号"""
+    filename = request.args.get('filename', '').strip()
+    project_id = request.args.get('project_id', type=int)
+
+    if not filename or not project_id:
+        return jsonify({'success': False, 'errors': {'params': ['缺少 filename 或 project_id']}}), 400
+
+    from services.file_service import next_version_number
+    version = next_version_number(filename, project_id)
+    return jsonify({'success': True, 'version_number': version})
+
+
 @files_bp.route('/upload', methods=['POST'])
 @api_login_required
 def api_upload_file():
@@ -39,6 +54,8 @@ def api_upload_file():
 
     project_id = request.form.get('project_id', type=int)
     folder_id = request.form.get('folder_id', type=int)
+    version_number = request.form.get('version_number', 'I').strip() or 'I'
+    version_note = request.form.get('version_note', '').strip() or None
 
     if not project_id or not folder_id:
         return jsonify({
@@ -46,11 +63,16 @@ def api_upload_file():
             'errors': {'params': ['缺少 project_id 或 folder_id']},
         }), 400
 
+    if version_note and len(version_note) > 200:
+        version_note = version_note[:200]
+
     result = save_uploaded_file(
         file_storage=file_storage,
         project_id=project_id,
         folder_id=folder_id,
         uploader_id=int(session['user_id']),
+        version_number=version_number,
+        version_note=version_note,
     )
 
     if not result['success']:
@@ -70,3 +92,14 @@ def api_list_files():
 
     files = get_files_by_folder(folder_id)
     return jsonify({'success': True, 'files': files, 'folder_id': folder_id})
+
+
+@files_bp.route('/<int:file_id>/versions')
+@api_login_required
+def api_file_versions(file_id):
+    """GET /api/files/<id>/versions → 返回文件的所有历史版本"""
+    from services.file_service import get_file_version_history
+    result = get_file_version_history(file_id)
+    if result is None:
+        return jsonify({'success': False, 'errors': {'file_id': ['文件不存在']}}), 404
+    return jsonify({'success': True, **result})

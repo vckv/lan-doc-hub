@@ -44,13 +44,14 @@ def get_files_by_folder(folder_id):
         list[dict]
     """
     files = (
-        File.query
-        .filter_by(folder_id=folder_id, is_current=True)
+        db.session.query(File, Project.model)
+        .join(Project, File.project_id == Project.id)
+        .filter(File.folder_id == folder_id, File.is_current == True)
         .order_by(File.created_at.desc())
         .all()
     )
     result = []
-    for f in files:
+    for f, model in files:
         result.append({
             'id': f.id,
             'original_filename': f.original_filename,
@@ -58,6 +59,8 @@ def get_files_by_folder(folder_id):
             'file_type': f.file_type,
             'file_size': f.file_size,
             'version_number': f.version_number,
+            'version_note': f.version_note,
+            'project_model': model,
             'is_shortcut': f.is_shortcut,
             'shortcut_target_id': f.shortcut_target_id,
             'uploader_name': f.uploader.display_name if f.uploader else '',
@@ -66,7 +69,8 @@ def get_files_by_folder(folder_id):
     return result
 
 
-def save_uploaded_file(file_storage, project_id, folder_id, uploader_id):
+def save_uploaded_file(file_storage, project_id, folder_id, uploader_id,
+                       version_number='I', version_note=None):
     """保存上传文件到磁盘并创建 DB 记录
 
     磁盘路径：uploads/<YYYY>/<MM>/<project_model>_<project_name>/<uuid8>_<safe_name>
@@ -140,7 +144,20 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id):
     file_size = os.path.getsize(disk_path)
 
     # ── 文件类型分类 ──
-    file_type = _classify_file_type(ext)
+    file_type = _classify_file_type(ext, mime=file_storage.mimetype)
+
+    # ── 标记同名同项目旧版本为非当前 ──
+    old_files = (
+        File.query
+        .filter_by(
+            original_filename=original_name,
+            project_id=project_id,
+            is_current=True,
+        )
+        .all()
+    )
+    for old in old_files:
+        old.is_current = False
 
     # ── 生成文件编号 ──
     file_number = generate_file_number()
@@ -160,7 +177,8 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id):
         folder_id=folder_id,
         uploader_id=uploader_id,
         project_id=project_id,
-        version_number='I',
+        version_number=version_number,
+        version_note=version_note,
         file_type=file_type,
         file_size=file_size,
         is_current=True,
@@ -186,15 +204,123 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id):
     }
 
 
-def _classify_file_type(ext):
-    """根据扩展名返回文件类型分类"""
+def _classify_file_type(ext, mime=None):
+    """根据扩展名 + MIME 类型返回文件类型分类
+
+    ext  文件扩展名（小写，不含点）
+    mime MIME 类型字符串（可选）
+    """
     mapping = {
         'pdf': 'PDF',
         'doc': 'Word', 'docx': 'Word',
-        'xls': 'Excel', 'xlsx': 'Excel',
+        'xls': 'Excel', 'xlsx': 'Excel', 'xlsm': 'Excel',
         'ppt': 'PowerPoint', 'pptx': 'PowerPoint',
         'txt': 'TXT', 'csv': 'CSV',
         'jpg': 'Image', 'jpeg': 'Image', 'png': 'Image',
         'gif': 'Image', 'bmp': 'Image', 'webp': 'Image',
+        'zip': 'Archive', 'rar': 'Archive', '7z': 'Archive',
+        'dwg': 'CAD', 'dxf': 'CAD',
     }
-    return mapping.get(ext, 'Other')
+    result = mapping.get(ext)
+    if result:
+        return result
+
+    # MIME 降级判断
+    if mime:
+        if mime.startswith('image/'):
+            return 'Image'
+        if mime.startswith('video/'):
+            return 'Video'
+        if mime.startswith('audio/'):
+            return 'Audio'
+        if mime.startswith('text/'):
+            return 'TXT'
+
+    return 'Other'
+
+
+# 罗马数字映射（支持 I~X）
+_ROMAN_TO_INT = {'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5,
+                 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10}
+_INT_TO_ROMAN = {1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V',
+                 6: 'VI', 7: 'VII', 8: 'VIII', 9: 'IX', 10: 'X'}
+
+
+def next_version_number(original_filename, project_id):
+    """返回同名文件的下一个版本号（罗马数字）
+
+    检索同一 project 下 original_filename 相同且 is_current=True 的文件的
+    最大 version_number，迭代+1。如果没有历史文件，返回 'I'。
+
+    Args:
+        original_filename: 原始文件名
+        project_id: 项目 ID
+
+    Returns:
+        str: 下一个版本号，例如 'IV'
+    """
+    max_file = (
+        File.query
+        .filter_by(original_filename=original_filename, project_id=project_id, is_current=True)
+        .order_by(File.created_at.desc())
+        .first()
+    )
+    if max_file is None:
+        return 'I'
+
+    current_int = _ROMAN_TO_INT.get(max_file.version_number, 1)
+    next_int = current_int + 1
+    if next_int > 10:
+        return 'X'
+    return _INT_TO_ROMAN.get(next_int, 'I')
+
+
+def get_file_version_history(file_id):
+    """获取文件的完整版本历史（含当前版本）
+
+    通过 file_id 定位文件，然后用 original_filename + project_id
+    查找所有同名同项目文件（包括非当前版本），按时间倒序。
+
+    Returns:
+        dict: {current_file: dict, history: list[dict]} 或 None
+    """
+    current_file = db.session.get(File, file_id)
+    if current_file is None:
+        return None
+
+    project = db.session.get(Project, current_file.project_id)
+
+    all_versions = (
+        File.query
+        .filter_by(
+            original_filename=current_file.original_filename,
+            project_id=current_file.project_id,
+        )
+        .order_by(File.created_at.desc())
+        .all()
+    )
+
+    history = []
+    for v in all_versions:
+        history.append({
+            'id': v.id,
+            'version_number': v.version_number,
+            'version_note': v.version_note or '',
+            'file_number': v.file_number,
+            'file_size': v.file_size,
+            'file_type': v.file_type,
+            'is_current': v.is_current,
+            'uploader_name': v.uploader.display_name if v.uploader else '',
+            'uploaded_at': v.created_at.strftime('%Y-%m-%d %H:%M'),
+        })
+
+    return {
+        'current_file': {
+            'id': file_id,
+            'original_filename': current_file.original_filename,
+            'file_number': current_file.file_number,
+            'project_model': project.model if project else '',
+            'project_name': project.name if project else '',
+        },
+        'history': history,
+    }

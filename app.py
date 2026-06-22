@@ -197,10 +197,21 @@ def create_app(config_overrides=None):
 
 def register_routes(app):
     """注册应用路由"""
+    from utils.decorators import login_required
+    from flask import abort
 
     @app.route('/')
     def index():
         return render_template('index.html')
+
+    @app.route('/files/<int:file_id>/versions')
+    @login_required
+    def file_version_page(file_id):
+        from services.file_service import get_file_version_history
+        data = get_file_version_history(file_id)
+        if data is None:
+            abort(404)
+        return render_template('file_versions.html', **data)
 
 
 if __name__ == '__main__':

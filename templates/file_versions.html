@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>版本历史 - LAN Doc Hub</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <style>
+        .version-page { max-width: 900px; margin: 40px auto; }
+        .version-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 30px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+        .version-card h3 { font-size: 1.2rem; font-weight: 700; }
+        .version-meta { color: #6b7280; font-size: 0.85rem; }
+        .badge-current { background: #28a745; }
+    </style>
+</head>
+<body style="background:#f5f6fa;">
+
+<div class="version-page">
+    <div class="version-card">
+        <h3>&#x1F4C4; {{ current_file.original_filename }}</h3>
+        <p class="version-meta">
+            编号：{{ current_file.file_number }} &nbsp;|&nbsp;
+            项目：{{ current_file.project_model }} {{ current_file.project_name }}
+        </p>
+
+        <table class="table table-hover mt-3">
+            <thead><tr>
+                <th>状态</th><th>版本</th><th>备注</th><th>类型</th><th>大小</th><th>上传者</th><th>时间</th>
+            </tr></thead>
+            <tbody>
+            {% for v in history %}
+            <tr{% if v.is_current %} class="table-success"{% endif %}>
+                <td>
+                    {% if v.is_current %}
+                    <span class="badge badge-current">当前</span>
+                    {% endif %}
+                </td>
+                <td><span class="badge badge-secondary">{{ v.version_number }}</span></td>
+                <td class="small">{{ v.version_note }}</td>
+                <td><span class="badge badge-light">{{ v.file_type }}</span></td>
+                <td class="small">{{ "%.1f"|format(v.file_size/(1024*1024)) }} MB</td>
+                <td class="small">{{ v.uploader_name }}</td>
+                <td class="small">{{ v.uploaded_at }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <button onclick="(function(){if(window.opener){window.opener.postMessage({action:'highlight-file',fileId:{{ current_file.id }}},location.origin)}window.close()})()" class="btn btn-outline-secondary btn-sm mt-2">&larr; 返回</button>
+    </div>
+</div>
+
+</body>
+</html>

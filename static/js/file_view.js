@@ -8,7 +8,19 @@ $(function () {
     var $container = $('#fileListContainer');
     var $breadcrumb = $('#breadcrumbFolder');
 
+    var _highlightFileId = null;
+    var _highlightDismissTimer = null;
+
     $(document).on('folder-selected', function (e, data) {
+        // 切换文件夹时清除旧高亮
+        if (_highlightFileId) {
+            $container.find('tr.row-hover').removeClass('row-hover');
+            _highlightFileId = null;
+            clearTimeout(_highlightDismissTimer);
+        }
+        _highlightFileId = data.highlightFileId || null;
+        // 记住文件夹位置，刷新页面后恢复
+        sessionStorage.setItem('lanhub_active_folder', data.folderId);
         loadFiles(data.folderId, data.folderName);
         loadBreadcrumb(data.folderId, data.folderName);
     });
@@ -48,9 +60,16 @@ $(function () {
 
         var rows = $.map(files, function (f) {
             var shortcut = f.is_shortcut ? ' ' + ICONS.LINK : '';
-            return '<tr>' +
+            return '<tr data-file-id="' + f.id + '">' +
                 '<td class="file-name">' + f.original_filename + shortcut + '</td>' +
                 '<td><span class="file-number">' + f.file_number + '</span></td>' +
+                '<td><span class="badge badge-info">' + (f.project_model || '') + '</span></td>' +
+                '<td class="text-center" style="white-space:nowrap;">' +
+                '<span class="badge badge-secondary mr-1">' + (f.version_number || 'I') + '</span>' +
+                '<a href="/files/' + f.id + '/versions?from=' + folderId + '&file=' + f.id + '" class="badge badge-pill small" target="_blank" ' +
+                'style="border:1px solid #6c757d;color:#6c757d;font-size:0.7rem;text-decoration:none;" ' +
+                'title="历史版次">历史</a>' +
+                '</td>' +
                 '<td><span class="badge badge-light badge-type">' + f.file_type + '</span></td>' +
                 '<td class="file-meta">' + LanDocHub.Utils.formatFileSize(f.file_size) + '</td>' +
                 '<td class="file-meta">' + (f.uploader_name || '') + '</td>' +
@@ -61,11 +80,26 @@ $(function () {
         $container.html([
             '<div class="file-table"><table class="table table-hover mb-0">',
             '<thead><tr>',
-            '<th>文件名称</th><th>编号</th><th>类型</th><th>大小</th><th>上传者</th><th>时间</th>',
+            '<th>文件名称</th><th>编号</th><th>型号</th><th>版本</th><th>类型</th><th>大小</th><th>上传者</th><th>时间</th>',
             '</tr></thead><tbody>',
             rows.join(''),
             '</tbody></table></div>'
         ].join(''));
+
+        if (_highlightFileId) {
+            var $row = $container.find('tr[data-file-id="' + _highlightFileId + '"]');
+            if ($row.length) {
+                $row.addClass('row-hover');
+                $row[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        } else {
+            var savedScroll = sessionStorage.getItem('lanhub_scroll_top');
+            if (savedScroll) {
+                requestAnimationFrame(function () {
+                    $('.main-content').scrollTop(parseInt(savedScroll));
+                });
+            }
+        }
     }
 
     // ── 面包屑导航 ──
@@ -110,5 +144,47 @@ $(function () {
 
         loadFiles(folderId, folderName);
         loadBreadcrumb(folderId, folderName);
+    });
+
+    // 监听子窗口（历史版本页）关闭时的 postMessage，直接高亮对应行
+    $(window).on('message', function (e) {
+        var evt = e.originalEvent;
+        if (evt.origin !== window.location.origin) return;
+        var data = evt.data;
+        if (!data || data.action !== 'highlight-file' || !data.fileId) return;
+
+        clearTimeout(_highlightDismissTimer);
+        $container.find('tr.row-hover').removeClass('row-hover');
+        _highlightFileId = data.fileId;
+
+        var $row = $container.find('tr[data-file-id="' + _highlightFileId + '"]');
+        if ($row.length) {
+            $row.addClass('row-hover');
+            $row[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+
+    // 其他行进入 hover 态时，200ms 后自动解除高亮行
+    $container.on('mouseenter', 'tr[data-file-id]', function () {
+        if (!_highlightFileId) return;
+        var hoveredId = parseInt($(this).attr('data-file-id'));
+        if (hoveredId === _highlightFileId) return;
+        clearTimeout(_highlightDismissTimer);
+        _highlightDismissTimer = setTimeout(function () {
+            $container.find('tr.row-hover').removeClass('row-hover');
+            _highlightFileId = null;
+        }, 200);
+    });
+
+    // ── 记住滚动位置（实时更新 + 离开前保底），刷新页面后恢复 ──
+    var _scrollSaveTimer = null;
+    $('.main-content').on('scroll', function () {
+        clearTimeout(_scrollSaveTimer);
+        _scrollSaveTimer = setTimeout(function () {
+            sessionStorage.setItem('lanhub_scroll_top', $('.main-content').scrollTop());
+        }, 80);
+    });
+    $(window).on('beforeunload', function () {
+        sessionStorage.setItem('lanhub_scroll_top', $('.main-content').scrollTop());
     });
 });

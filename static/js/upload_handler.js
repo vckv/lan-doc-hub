@@ -95,6 +95,23 @@ $(function () {
             '<option value="">加载中...</option>' +
             '</select>' +
             '</div>' +
+            '<div class="form-row">' +
+            '<div class="form-group col-md-4">' +
+            '<label>版本号 <small class="text-muted">(自动迭代)</small></label>' +
+            '<select class="form-control form-control-sm" id="inputVersionNumber">' +
+            '<option value="I">I</option><option value="II">II</option>' +
+            '<option value="III">III</option><option value="IV">IV</option>' +
+            '<option value="V">V</option><option value="VI">VI</option>' +
+            '<option value="VII">VII</option><option value="VIII">VIII</option>' +
+            '<option value="IX">IX</option><option value="X">X</option>' +
+            '</select>' +
+            '</div>' +
+            '<div class="form-group col-md-8">' +
+            '<label>版本备注 <small class="text-muted">(可选)</small></label>' +
+            '<input type="text" class="form-control form-control-sm" id="inputVersionNote" ' +
+            'placeholder="修改说明，最多 200 字" maxlength="200">' +
+            '</div>' +
+            '</div>' +
             '<div class="alert alert-warning py-2 mb-0 mt-2 small" id="alertProjectMismatch" ' +
             'style="display:none;">' +
             '⚠ 当前文件夹不属于所选项目，提交后将触发跨项目拦截。' +
@@ -118,8 +135,35 @@ $(function () {
             $('#inputProjectId').val(selectedId);
         });
 
+        // 自动检索下一个版本号
+        function fetchNextVersion() {
+            var projectId = parseInt($('#inputProjectId').val());
+            if (!projectId) {
+                console.warn('[版本号] 项目未选中，跳过自动检索');
+                return;
+            }
+            var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+            $.ajax({
+                url: '/api/files/next-version',
+                method: 'GET',
+                data: { filename: file.name, project_id: projectId },
+                headers: { 'X-CSRF-Token': csrfToken },
+                dataType: 'json',
+            }).done(function (resp) {
+                if (resp.success && resp.version_number) {
+                    $('#inputVersionNumber').val(resp.version_number);
+                } else {
+                    console.warn('[版本号] 响应异常:', resp);
+                }
+            }).fail(function (jqXHR, textStatus) {
+                console.warn('[版本号] 检索失败 (' + textStatus + ')，使用默认值 I');
+            });
+        }
+
+        // 项目切换时重新检索版本号
         $('#inputProjectId').on('change', function () {
             checkProjectMatch(getCurrentFolderId(), parseInt($(this).val()));
+            fetchNextVersion();
         });
 
         $('#btnConfirmUpload').on('click', function () {
@@ -148,6 +192,11 @@ $(function () {
 
         $modal.on('hidden.bs.modal', function () {
             $modal.remove();
+        });
+
+        // 弹窗显示后再检索版本号（确保 DOM 完全就绪）
+        $modal.on('shown.bs.modal', function () {
+            fetchNextVersion();
         });
 
         $modal.modal('show');
@@ -219,6 +268,8 @@ $(function () {
         formData.append('file', file);
         formData.append('project_id', projectId);
         formData.append('folder_id', folderId);
+        formData.append('version_number', $('#inputVersionNumber').val() || 'I');
+        formData.append('version_note', $('#inputVersionNote').val() || '');
 
         var $statusEl = $('<div class="alert alert-info small py-1 mt-2">上传中...</div>');
         $('#fileListContainer').prepend($statusEl);

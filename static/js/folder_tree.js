@@ -35,6 +35,30 @@ $(function () {
             showCreateModal(getActiveFolderContext());
         });
         updateCreateButtonLabel();
+
+        // ── 恢复进入历史页面前的文件夹选中状态 ──
+        var urlParams = new URLSearchParams(window.location.search);
+        var restoreFolderId = parseInt(urlParams.get('folder'));
+        var highlightFileId = parseInt(urlParams.get('highlight')) || null;
+
+        // URL 无文件夹参数时，尝试从 sessionStorage 恢复（刷新场景）
+        if (!restoreFolderId) {
+            var saved = sessionStorage.getItem('lanhub_active_folder');
+            if (saved) restoreFolderId = parseInt(saved);
+        }
+
+        if (restoreFolderId) {
+            var $targetNode = $sidebar.find('.tree-node[data-folder-id="' + restoreFolderId + '"]');
+            if ($targetNode.length) {
+                $targetNode.addClass('active');
+                var folderName = $targetNode.find('.tree-label').text().trim();
+                $(document).trigger('folder-selected', {
+                    folderId: restoreFolderId,
+                    folderName: folderName,
+                    highlightFileId: highlightFileId,
+                });
+            }
+        }
     })
     .fail(function () {
         $sidebar.find('.sidebar-placeholder').html(
