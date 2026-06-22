@@ -15,12 +15,23 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # 文件上传
+    # ── 文件上传限制 ──
+    # Flask 全局限制设为 None，由上传路由按文件类型分别校验
     UPLOAD_FOLDER = os.environ.get(
         'UPLOAD_FOLDER',
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     )
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB 默认上传上限（路由层覆写为 50MB）
+    MAX_CONTENT_LENGTH = None
+    SINGLE_FILE_MAX_SIZE = 500 * 1024 * 1024   # 单文件 500MB
+    ARCHIVE_EXTENSIONS = {'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'tgz'}
+    FILE_ORIGINAL_NAME_MAX_LENGTH = 64
+
+    # ── 登录安全 ──
+    LOGIN_MAX_FAILED_ATTEMPTS = 5
+    LOGIN_LOCK_MINUTES = 15          # PRD 要求 15 分钟
+
+    # ── 文件夹 ──
+    FOLDER_NAME_MAX_LENGTH = 32
 
     # 会话安全（F1-B 硬化）
     SESSION_COOKIE_HTTPONLY = True

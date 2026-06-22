@@ -1,5 +1,7 @@
 """首次初始化引导端点 —— 创建首个管理员账号（需 setup 密钥）"""
 
+import traceback
+
 from flask import Blueprint, render_template, request, abort
 
 from models import User
@@ -65,7 +67,6 @@ def setup():
                 created_ip=request.remote_addr or '127.0.0.1',
             )
         except Exception as exc:
-            import traceback
             from flask import current_app
             current_app.logger.error(
                 'create_user 异常 — %s: %s\n%s',

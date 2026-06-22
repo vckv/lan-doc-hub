@@ -1,10 +1,15 @@
 """数据库模型定义 —— v1 核心表 + v2 预留表"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 
 db = SQLAlchemy()
+
+
+def utcnow():
+    """Python 3.12+ 兼容的 UTC 当前时间（naive datetime，与 SQLite 对齐）"""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 # ═══════════════════════════════════════════
@@ -57,7 +62,7 @@ class Project(db.Model):
     model = db.Column(db.String(20), unique=True, nullable=False)   # 项目型号：英文+数字
     name = db.Column(db.String(30), unique=True, nullable=False)    # 项目名称：中文
     description = db.Column(db.String(256), nullable=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     # 关系
     files = db.relationship('File', backref='project', lazy=True)
@@ -78,7 +83,7 @@ class Folder(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('folders.id'), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     # 自引用关系
     children = db.relationship('Folder', backref=db.backref('parent', remote_side=[id]), lazy=True)
@@ -95,7 +100,7 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(32), unique=True, nullable=False)
     color = db.Column(db.String(7), nullable=True, default='#3b82f6')  # hex color
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f'<Tag {self.name}>'
@@ -121,7 +126,7 @@ class File(db.Model):
     is_current = db.Column(db.Boolean, nullable=False, default=True, index=True)
     is_shortcut = db.Column(db.Boolean, nullable=False, default=False)
     shortcut_target_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     # 关系
     tags = db.relationship('Tag', secondary='file_tags', backref='files', lazy=True)
@@ -151,7 +156,7 @@ class FileVersion(db.Model):
     file_path = db.Column(db.String(512), nullable=False)
     file_size = db.Column(db.BigInteger, nullable=False, default=0)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    uploaded_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f'<FileVersion {self.file_id} v{self.version_number}>'
@@ -168,7 +173,7 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(32), unique=True, nullable=False)
     description = db.Column(db.String(128), nullable=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f'<Role {self.name}>'
@@ -182,7 +187,7 @@ class Permission(db.Model):
     name = db.Column(db.String(64), unique=True, nullable=False)
     code = db.Column(db.String(64), unique=True, nullable=False)  # 如 file:upload, file:delete
     description = db.Column(db.String(128), nullable=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f'<Permission {self.code}>'
@@ -221,7 +226,7 @@ class ApprovalWorkflow(db.Model):
     description = db.Column(db.String(256), nullable=True)
     total_steps = db.Column(db.Integer, nullable=False, default=1)  # 总审批级数（8-10级）
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f'<ApprovalWorkflow {self.name}>'
@@ -251,7 +256,7 @@ class ApprovalRecord(db.Model):
     current_step = db.Column(db.Integer, nullable=False, default=1)         # 当前审批到第几级
     status = db.Column(db.String(16), nullable=False, default='pending')    # pending/approved/rejected
     submitted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    submitted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    submitted_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
 
     def __repr__(self):
@@ -268,7 +273,7 @@ class ApprovalLog(db.Model):
     approver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     action = db.Column(db.String(16), nullable=False)    # approve / reject
     comment = db.Column(db.String(512), nullable=True)
-    acted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    acted_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     def __repr__(self):
         return f'<ApprovalLog record={self.record_id} step={self.step_order} {self.action}>'

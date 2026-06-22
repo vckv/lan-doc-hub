@@ -1,6 +1,15 @@
 """文件夹服务层 —— 树形查询、创建、重命名、删除"""
 
+from flask import current_app
+
 from models import db, Folder
+
+
+def _get_folder_name_max_len():
+    try:
+        return current_app.config.get('FOLDER_NAME_MAX_LENGTH', 32)
+    except RuntimeError:
+        return 32
 
 
 def _build_children(parent_id):
@@ -62,8 +71,8 @@ def create_folder(name, parent_id, user_id):
     name = (name or '').strip()
     if not name:
         errors['name'] = ['文件夹名称不能为空']
-    elif len(name) > 32:
-        errors['name'] = ['文件夹名称最多 32 个字符']
+    elif len(name) > _get_folder_name_max_len():
+        errors['name'] = [f'文件夹名称最多 {_get_folder_name_max_len()} 个字符']
 
     parent = db.session.get(Folder, parent_id)
     if parent is None:
@@ -123,8 +132,8 @@ def rename_folder(folder_id, new_name):
     new_name = (new_name or '').strip()
     if not new_name:
         errors['name'] = ['文件夹名称不能为空']
-    elif len(new_name) > 32:
-        errors['name'] = ['文件夹名称最多 32 个字符']
+    elif len(new_name) > _get_folder_name_max_len():
+        errors['name'] = [f'文件夹名称最多 {_get_folder_name_max_len()} 个字符']
 
     if errors:
         return {'success': False, 'folder': None, 'errors': errors}

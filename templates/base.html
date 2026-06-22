@@ -21,7 +21,7 @@
 
     <!-- 搜索栏（占位，后续实现搜索功能） -->
     <div class="search-box mx-auto d-none d-md-block">
-        <span class="search-icon">&#128269;</span>
+        <span class="search-icon">🔍</span>
         <input class="form-control" type="text" placeholder="搜索文件名..." disabled>
     </div>
 
@@ -58,8 +58,10 @@
 <!-- 主内容区 -->
 <div class="main-wrapper">
     <!-- 左侧栏 -->
-    <aside class="sidebar" data-is-admin="{{ 'true' if session.get('user_role') == 'admin' else 'false' }}">
-        <div class="sidebar-header">&#128193; 文件夹</div>
+    <aside class="sidebar"
+           data-is-admin="{{ 'true' if session.get('user_role') == 'admin' else 'false' }}"
+           data-user-display-name="{{ session.get('display_name', session.get('username', '')) }}">
+        <div class="sidebar-header">📁 文件夹</div>
         {% block sidebar %}
         <div class="sidebar-placeholder">
             <div class="icon">&#128194;</div>
@@ -69,7 +71,7 @@
         {% if session.get('user_role') == 'admin' %}
         <div class="sidebar-footer">
             <button class="btn btn-outline-secondary btn-sm" id="btnCreate">
-                &#128193; 新增项目
+                📁 新增项目
             </button>
         </div>
         {% endif %}
@@ -79,9 +81,9 @@
     <main class="main-content">
         <!-- 工具栏（F3-1） -->
         <div class="content-toolbar" id="contentToolbar">
-            <span class="breadcrumb-folder" id="breadcrumbFolder">&#128193; 欢迎</span>
+            <span class="breadcrumb-folder" id="breadcrumbFolder">📁 欢迎</span>
             <button type="button" class="btn btn-primary btn-sm btn-upload" id="btnUploadFile">
-                &#128206; 上传文件
+                📎 上传文件
             </button>
         </div>
         <!-- 文件列表区 -->
@@ -101,6 +103,11 @@
 <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
 <!-- Bootstrap 4 JS -->
 <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+
+<!-- 应用配置（全局常量、图标） -->
+<script src="{{ url_for('static', filename='js/app_config.js') }}"></script>
+<!-- 共享工具函数 -->
+<script src="{{ url_for('static', filename='js/app_utils.js') }}"></script>
 
 <!-- 文件夹树 JS（全局默认加载，F2-1） -->
 <script src="{{ url_for('static', filename='js/folder_tree.js') }}"></script>

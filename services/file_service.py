@@ -2,7 +2,7 @@
 
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from werkzeug.utils import secure_filename
 
@@ -14,7 +14,7 @@ def generate_file_number():
 
     策略：查询当日最大序号 + 1，SET NOT NULL 兜底。
     """
-    today = datetime.utcnow().strftime('%Y%m%d')
+    today = datetime.now(timezone.utc).strftime('%Y%m%d')
     prefix = f'F-{today}-'
 
     latest = (
@@ -98,8 +98,25 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id):
         errors['file'] = [f'不支持的文件类型 .{ext}']
         return {'success': False, 'file': None, 'errors': errors}
 
+    # ── 文件大小校验（压缩包不限） ──
+    archive_exts = current_app.config.get('ARCHIVE_EXTENSIONS', set())
+    if ext not in archive_exts:
+        max_size = current_app.config.get('SINGLE_FILE_MAX_SIZE', 500 * 1024 * 1024)
+        try:
+            file_storage.stream.seek(0, 2)
+            file_size_bytes = file_storage.stream.tell()
+            file_storage.stream.seek(0)
+        except (OSError, AttributeError):
+            file_size_bytes = 0
+        if file_size_bytes > max_size:
+            errors['file'] = [
+                f'文件大小 {file_size_bytes // (1024*1024)}MB 超过 '
+                f'{max_size // (1024*1024)}MB 限制'
+            ]
+            return {'success': False, 'file': None, 'errors': errors}
+
     # ── 构建存储路径 ──
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     upload_dir = current_app.config['UPLOAD_FOLDER']
     project_dir_name = f'{project.model}_{project.name}'
     date_path = os.path.join(
@@ -129,7 +146,8 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id):
     file_number = generate_file_number()
 
     # ── 原始文件名截断至 64 字符 ──
-    if len(original_name) > 64:
+    max_len = current_app.config.get('FILE_ORIGINAL_NAME_MAX_LENGTH', 64)
+    if len(original_name) > max_len:
         name_part, ext_part = os.path.splitext(original_name)
         original_name = name_part[:59] + '...' + ext_part
 

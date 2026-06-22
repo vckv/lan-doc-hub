@@ -1,14 +1,47 @@
 """认证服务层 —— 登录验证、账号锁定"""
 
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import bcrypt
+from flask import current_app
 
 from models import db, User
 
 
-MAX_FAILED_ATTEMPTS = 5
-LOCK_DURATION = timedelta(minutes=30)
+@dataclass
+class LoginContext:
+    """登录上下文，承载会话级追踪数据（相同密码提示大小写）"""
+    last_username: str = ''
+    last_password: str = ''
+    same_count: int = 0
+
+    def track(self, username: str, password: str) -> bool:
+        """记录本次尝试，返回是否需要大小写提示（≥3 次相同密码）"""
+        if username == self.last_username and password == self.last_password:
+            self.same_count += 1
+        else:
+            self.same_count = 1
+        self.last_username = username
+        self.last_password = password
+        return self.same_count >= 3
+
+
+def _get_lock_duration():
+    """从配置读取锁定时间（分钟），兜底 15 分钟"""
+    try:
+        minutes = current_app.config.get('LOGIN_LOCK_MINUTES', 15)
+    except RuntimeError:
+        minutes = 15
+    return timedelta(minutes=minutes)
+
+
+def _get_max_failed_attempts():
+    """从配置读取最大失败次数，兜底 5 次"""
+    try:
+        return current_app.config.get('LOGIN_MAX_FAILED_ATTEMPTS', 5)
+    except RuntimeError:
+        return 5
 
 
 def authenticate_user(username, password, ip_address='127.0.0.1'):
@@ -45,7 +78,7 @@ def authenticate_user(username, password, ip_address='127.0.0.1'):
         return {'success': False, 'user': None, 'errors': errors}
 
     # ── 3. 账号锁定检查 ──
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if user.locked_until and user.locked_until > now:
         remaining = int((user.locked_until - now).total_seconds() // 60)
         errors['error_type'] = 'locked'
@@ -54,12 +87,14 @@ def authenticate_user(username, password, ip_address='127.0.0.1'):
 
     # ── 4. 密码验证 ──
     if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+        max_attempts = _get_max_failed_attempts()
+        lock_duration = _get_lock_duration()
         user.failed_attempts += 1
-        if user.failed_attempts >= MAX_FAILED_ATTEMPTS:
-            user.locked_until = now + LOCK_DURATION
+        if user.failed_attempts >= max_attempts:
+            user.locked_until = now + lock_duration
             user.failed_attempts = 0
             errors['error_type'] = 'locked_out'
-            errors['message'] = '密码错误次数过多，账号已锁定 30 分钟'
+            errors['message'] = f'密码错误次数过多，账号已锁定 {lock_duration.total_seconds() // 60:.0f} 分钟'
         else:
             errors['error_type'] = 'wrong_password'
             errors['message'] = '密码错误，请确认后输入'

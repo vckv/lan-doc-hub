@@ -19,7 +19,7 @@ $(function () {
         if ($fileInput) return;
         $fileInput = $(
             '<input type="file" style="display:none;" ' +
-            'accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.gif,.bmp,.webp">'
+            'accept="' + LanDocHub.CONFIG.ACCEPTED_FILE_TYPES + '">'
         );
         $('body').append($fileInput);
 
@@ -51,7 +51,7 @@ $(function () {
                 showFolderPickerModal(file, fileNumber);
             }
         }).fail(function () {
-            alert('\u6587\u4EF6\u7F16\u53F7\u751F\u6210\u5931\u8D25\uFF0C\u8BF7\u5237\u65B0\u9875\u9762\u540E\u91CD\u8BD5');
+            LanDocHub.Utils.showInlineError($('#fileListContainer'), '文件编号生成失败，请刷新页面后重试');
         });
     }
 
@@ -59,52 +59,52 @@ $(function () {
         // 移除旧弹窗
         $('#uploadInfoModal').remove();
 
-        var fileSizeStr = formatUploadSize(file.size);
-        var uploaderName = ($('#navbarUserDisplay').text() || '').trim() || '\u5F53\u524D\u7528\u6237';
+        var fileSizeStr = LanDocHub.Utils.formatFileSize(file.size);
+        var uploaderName = LanDocHub.Utils.getUserDisplayName();
 
         var html =
             '<div class="modal fade" id="uploadInfoModal" tabindex="-1" role="dialog">' +
             '<div class="modal-dialog modal-dialog-centered" role="document">' +
             '<div class="modal-content">' +
             '<div class="modal-header bg-primary text-white">' +
-            '<h5 class="modal-title">\uD83D\uDCE4 \u6587\u4EF6\u4E0A\u4F20</h5>' +
+            '<h5 class="modal-title">\uD83D\uDCE4 文件上传</h5>' +
             '<button type="button" class="close text-white" data-dismiss="modal">&times;</button>' +
             '</div>' +
             '<div class="modal-body">' +
             '<div class="form-group">' +
-            '<label>\u6587\u4EF6\u540D\u79F0</label>' +
+            '<label>文件名称</label>' +
             '<input type="text" class="form-control-plaintext" readonly ' +
             'value="' + file.name + ' (' + fileSizeStr + ')">' +
             '</div>' +
             '<div class="form-row">' +
             '<div class="form-group col-md-6">' +
-            '<label>\u6587\u4EF6\u7F16\u53F7</label>' +
+            '<label>文件编号</label>' +
             '<input type="text" class="form-control form-control-sm" id="inputFileNumber" ' +
             'value="' + fileNumber + '" readonly>' +
             '</div>' +
             '<div class="form-group col-md-6">' +
-            '<label>\u4E0A\u4F20\u8005</label>' +
+            '<label>上传者</label>' +
             '<input type="text" class="form-control form-control-sm" id="inputUploader" ' +
             'value="' + uploaderName + '" readonly>' +
             '</div>' +
             '</div>' +
             '<div class="form-group">' +
-            '<label>\u6240\u5C5E\u9879\u76EE ' +
-            '<small class="text-muted">(\u9ED8\u8BA4\u4E3A\u5F53\u524D\u6587\u4EF6\u5939\u6240\u5C5E\u9879\u76EE)</small></label>' +
+            '<label>所属项目 ' +
+            '<small class="text-muted">(默认为当前文件夹所属项目)</small></label>' +
             '<select class="form-control form-control-sm" id="inputProjectId">' +
-            '<option value="">\u52A0\u8F7D\u4E2D...</option>' +
+            '<option value="">加载中...</option>' +
             '</select>' +
             '</div>' +
             '<div class="alert alert-warning py-2 mb-0 mt-2 small" id="alertProjectMismatch" ' +
             'style="display:none;">' +
-            '\u26A0 \u5F53\u524D\u6587\u4EF6\u5939\u4E0D\u5C5E\u4E8E\u6240\u9009\u9879\u76EE\uFF0C\u63D0\u4EA4\u540E\u5C06\u89E6\u53D1\u8DE8\u9879\u76EE\u62E6\u622A\u3002' +
+            '⚠ 当前文件夹不属于所选项目，提交后将触发跨项目拦截。' +
             '</div>' +
             '</div>' +
             '<div class="modal-footer">' +
             '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">' +
-            '\u53D6\u6D88</button>' +
+            '取消</button>' +
             '<button type="button" class="btn btn-primary btn-sm" id="btnConfirmUpload">' +
-            '\u786E\u8BA4\u4E0A\u4F20</button>' +
+            '确认上传</button>' +
             '</div>' +
             '</div>' +
             '</div>' +
@@ -125,9 +125,10 @@ $(function () {
         $('#btnConfirmUpload').on('click', function () {
             var projectId = parseInt($('#inputProjectId').val());
             if (!projectId) {
-                alert('\u8BF7\u9009\u62E9\u6240\u5C5E\u9879\u76EE');
+                $('#inputProjectId').addClass('is-invalid');
                 return;
             }
+            $('#inputProjectId').removeClass('is-invalid');
             $modal.modal('hide');
 
             var folderId = getCurrentFolderId();
@@ -219,7 +220,7 @@ $(function () {
         formData.append('project_id', projectId);
         formData.append('folder_id', folderId);
 
-        var $statusEl = $('<div class="alert alert-info small py-1 mt-2">\u4E0A\u4F20\u4E2D...</div>');
+        var $statusEl = $('<div class="alert alert-info small py-1 mt-2">上传中...</div>');
         $('#fileListContainer').prepend($statusEl);
 
         var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
@@ -235,50 +236,27 @@ $(function () {
             $statusEl.remove();
             if (!resp.success) {
                 var errs = resp.errors || {};
-                var msg = Object.values(errs).flat().join('; ') || '\u4E0A\u4F20\u5931\u8D25';
-                alert(msg);
+                var msg = Object.values(errs).flat().join('; ') || '上传失败';
+                LanDocHub.Utils.showInlineError($('#fileListContainer'), msg);
                 return;
             }
-            var folderName = ($('#breadcrumbFolder').text() || '').replace('\uD83D\uDCC2 ', '');
+            var folderName = ($('#breadcrumbFolder').text() || '').replace(LanDocHub.ICONS.FOLDER_OPEN + ' ', '');
             $(document).trigger('folder-selected', {
                 folderId: folderId,
-                folderName: folderName || '\u6587\u4EF6\u5939',
+                folderName: folderName || '文件夹',
             });
         })
         .fail(function (jqXHR) {
             $statusEl.remove();
-            var msg = '\u4E0A\u4F20\u5931\u8D25';
+            var msg = '上传失败';
             if (jqXHR.status === 413) {
-                msg = '\u6587\u4EF6\u592A\u5927\uFF0C\u8D85\u8FC7 50 MB \u9650\u5236';
+                msg = '文件太大，超过 ' + LanDocHub.CONFIG.MAX_FILE_SIZE_MB + ' MB 限制';
             }
-            alert(msg);
+            LanDocHub.Utils.showInlineError($('#fileListContainer'), msg);
         });
     }
 
-    function formatUploadSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
 
-    // ── 文件夹树扁平化（Task 3）──
-    function flattenTree(nodes, depth) {
-        depth = depth || 0;
-        var flat = [];
-        $.each(nodes, function (i, node) {
-            flat.push({
-                id: node.id,
-                name: node.name,
-                project_id: node.project_id,
-                is_project_root: node.is_project_root,
-                depth: depth,
-            });
-            if (node.children && node.children.length > 0) {
-                flat = flat.concat(flattenTree(node.children, depth + 1));
-            }
-        });
-        return flat;
-    }
 
     // ── 文件夹选择器模态框（Task 3）──
     function showFolderPickerModal(file, fileNumber) {
@@ -289,29 +267,29 @@ $(function () {
             '<div class="modal-dialog modal-dialog-centered modal-lg" role="document">' +
             '<div class="modal-content">' +
             '<div class="modal-header bg-primary text-white">' +
-            '<h5 class="modal-title">\uD83D\uDCC2 \u9009\u62E9\u76EE\u6807\u6587\u4EF6\u5939</h5>' +
+            '<h5 class="modal-title">\uD83D\uDCC2 选择目标文件夹</h5>' +
             '<button type="button" class="close text-white" data-dismiss="modal">&times;</button>' +
             '</div>' +
             '<div class="modal-body" style="max-height:400px;overflow-y:auto;">' +
-            '<p class="text-muted small mb-2">\u6587\u4EF6\uFF1A<strong>' + file.name + '</strong> \uFF08' + formatUploadSize(file.size) + '\uFF09</p>' +
-            '<p class="text-muted small mb-3">\u7F16\u53F7\uFF1A' + fileNumber + '</p>' +
+            '<p class="text-muted small mb-2">文件：<strong>' + file.name + '</strong> （' + LanDocHub.Utils.formatFileSize(file.size) + '）</p>' +
+            '<p class="text-muted small mb-3">编号：' + fileNumber + '</p>' +
             '<div id="folderPickerList" class="list-group list-group-flush"></div>' +
             '<div id="newFolderForm" style="display:none;" class="mt-2 p-2 bg-light rounded">' +
             '<div class="input-group input-group-sm">' +
             '<input type="text" class="form-control" id="inputNewFolderName" ' +
-            'placeholder="\u65B0\u6587\u4EF6\u5939\u540D\u79F0\uFF0C\u6700\u591A 32 \u5B57\u7B26" maxlength="32">' +
+            'placeholder="新文件夹名称，最多 32 字符" maxlength="32">' +
             '<div class="input-group-append">' +
-            '<button class="btn btn-success" id="btnCreateFolder">\u521B\u5EFA</button>' +
-            '<button class="btn btn-outline-secondary" id="btnCancelCreate">\u53D6\u6D88</button>' +
+            '<button class="btn btn-success" id="btnCreateFolder">创建</button>' +
+            '<button class="btn btn-outline-secondary" id="btnCancelCreate">取消</button>' +
             '</div>' +
             '</div>' +
             '<div class="invalid-feedback d-block" id="newFolderError" style="display:none;"></div>' +
             '</div>' +
             '</div>' +
             '<div class="modal-footer">' +
-            '<button type="button" class="btn btn-outline-secondary btn-sm" id="btnToggleNewFolder">\uD83D\uDCC1 \u65B0\u5EFA\u6587\u4EF6\u5939</button>' +
-            '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">\u53D6\u6D88</button>' +
-            '<button type="button" class="btn btn-primary btn-sm" id="btnConfirmFolder" disabled>\u786E\u8BA4\u9009\u62E9</button>' +
+            '<button type="button" class="btn btn-outline-secondary btn-sm" id="btnToggleNewFolder">\uD83D\uDCC1 新建文件夹</button>' +
+            '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">取消</button>' +
+            '<button type="button" class="btn btn-primary btn-sm" id="btnConfirmFolder" disabled>确认选择</button>' +
             '</div>' +
             '</div>' +
             '</div>' +
@@ -329,11 +307,11 @@ $(function () {
         }).done(function (resp) {
             if (!resp.success || !resp.tree || resp.tree.length === 0) {
                 $('#folderPickerList').html(
-                    '<div class="text-center text-muted py-4">\u6682\u65E0\u53EF\u7528\u6587\u4EF6\u5939</div>'
+                    '<div class="text-center text-muted py-4">暂无可用文件夹</div>'
                 );
                 return;
             }
-            var flat = flattenTree(resp.tree);
+            var flat = LanDocHub.Utils.flattenTree(resp.tree);
             var html2 = '';
             $.each(flat, function (i, f) {
                 var indent = '&nbsp;&nbsp;&nbsp;&nbsp;'.repeat(f.depth);
@@ -377,7 +355,7 @@ $(function () {
         $('#btnCreateFolder').on('click', function () {
             var name = $('#inputNewFolderName').val().trim();
             if (!name) {
-                $('#newFolderError').text('\u6587\u4EF6\u5939\u540D\u79F0\u4E0D\u80FD\u4E3A\u7A7A').show();
+                $('#newFolderError').text('文件夹名称不能为空').show();
                 return;
             }
 
@@ -408,7 +386,7 @@ $(function () {
                     dataType: 'json',
                 }).done(function (treeResp) {
                     if (treeResp.success && treeResp.tree) {
-                        var flat = flattenTree(treeResp.tree);
+                        var flat = LanDocHub.Utils.flattenTree(treeResp.tree);
                         var html2 = '';
                         var newFolderId = resp.folder.id;
                         $.each(flat, function (i, f) {
@@ -432,7 +410,7 @@ $(function () {
                 });
             })
             .fail(function () {
-                $('#newFolderError').text('\u521B\u5EFA\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5').show();
+                $('#newFolderError').text('创建失败，请重试').show();
             });
         });
 

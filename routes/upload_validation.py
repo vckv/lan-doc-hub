@@ -7,22 +7,18 @@ from services.upload_validation_service import (
     ensure_project_folder,
     create_shortcut_record,
 )
+from utils.decorators import api_login_required
 
 upload_validation_bp = Blueprint('upload_validation', __name__, url_prefix='/api')
 
 
-def _require_login():
-    if 'user_id' not in session:
-        abort(401, '请先登录')
-
-
 @upload_validation_bp.route('/validate-upload', methods=['POST'])
+@api_login_required
 def api_validate_upload():
     """POST /api/validate-upload → 校验文件归属与文件夹项目是否一致
 
     JSON body: {"folder_id": N, "project_id": N}
     """
-    _require_login()
 
     data = request.get_json(silent=True) or {}
     folder_id = data.get('folder_id')
@@ -49,14 +45,13 @@ def api_validate_upload():
 
 
 @upload_validation_bp.route('/projects/<int:project_id>/ensure-folder', methods=['POST'])
+@api_login_required
 def api_ensure_project_folder(project_id):
     """POST /api/projects/<id>/ensure-folder → 确保项目有根文件夹
 
     Returns:
         {'success': True, 'folder_id': N, 'folder_name': str, 'created': bool}
     """
-    _require_login()
-
     result = ensure_project_folder(project_id, created_by=int(session['user_id']))
 
     if not result['success']:
@@ -71,13 +66,12 @@ def api_ensure_project_folder(project_id):
 
 
 @upload_validation_bp.route('/shortcuts', methods=['POST'])
+@api_login_required
 def api_create_shortcut():
     """POST /api/shortcuts → 创建快捷方式引用记录
 
     JSON body: {"file_id": N, "folder_id": N, "project_id": N}
     """
-    _require_login()
-
     data = request.get_json(silent=True) or {}
     file_id = data.get('file_id')
     folder_id = data.get('folder_id')

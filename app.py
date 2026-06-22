@@ -2,8 +2,9 @@ import os
 import sys
 import secrets
 import logging
+import traceback
 
-from flask import Flask, render_template, request, session, abort, redirect, url_for
+from flask import Flask, render_template, request, session, abort, redirect, url_for, jsonify
 
 from models import db as model_db
 
@@ -144,11 +145,27 @@ def create_app(config_overrides=None):
 
     @app.errorhandler(500)
     def handle_server_error(e):
-        import traceback
         logger.error('500 at %s %s — full traceback follows:', request.method, request.path)
         logger.error(traceback.format_exc())
         return render_template('error.html', code=500,
                                message='服务器内部错误，请查看控制台获取详细信息。'), 500
+
+    from exceptions import AppError
+
+    @app.errorhandler(AppError)
+    def handle_app_error(e: AppError):
+        """统一处理应用层异常，返回 JSON 或 HTML"""
+        logger.warning('%s %s → %s %s', request.method, request.path,
+                       e.status_code, e.message or e.error_type)
+        if request.path.startswith('/api/'):
+            return jsonify({
+                'success': False,
+                'error_type': e.error_type,
+                'message': e.message,
+                'errors': e.errors,
+            }), e.status_code
+        return render_template('error.html', code=e.status_code,
+                               message=e.message or '请求错误'), e.status_code
 
     # ── 注册蓝图 ──
     from routes.bootstrap import bootstrap_bp
@@ -169,8 +186,8 @@ def create_app(config_overrides=None):
     from routes.projects import projects_bp
     app.register_blueprint(projects_bp)
 
-    # 设置上传限制（F3-1）
-    app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
+    # 上传限制已统一在 config.py 中配置，Flask 全局限制为 None，
+    # 具体限制由 services/file_service.py 按文件类型校验
 
     # 注册路由
     register_routes(app)

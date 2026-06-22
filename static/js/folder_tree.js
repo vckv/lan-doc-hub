@@ -27,7 +27,7 @@ $(function () {
         }
         $sidebar.find('.sidebar-placeholder').remove();
         var $tree = buildTreeHtml(resp.tree);
-        $sidebar.append($tree);
+        $tree.insertBefore($sidebar.find('.sidebar-footer'));
         bindTreeEvents($sidebar);
 
         // 绑定常驻按钮事件
@@ -55,8 +55,8 @@ $(function () {
 
             var $item = $('<div class="tree-item"></div>');
             var hasChildren = node.children && node.children.length > 0;
-            var toggleIcon = hasChildren ? '\u25B6' : '\u00B7';
-            var folderIcon = node.is_project_root ? '\uD83D\uDCC1' : '\uD83D\uDCC2';
+            var toggleIcon = hasChildren ? LanDocHub.ICONS.ARROW_RIGHT : LanDocHub.ICONS.DOT;
+            var folderIcon = node.is_project_root ? LanDocHub.ICONS.FOLDER_CLOSED : LanDocHub.ICONS.FOLDER_OPEN;
 
             $item.append('<span class="tree-toggle">' + toggleIcon + '</span>');
             $item.append('<span class="tree-icon">' + folderIcon + '</span>');
@@ -87,10 +87,10 @@ $(function () {
             if ($children.length > 0) {
                 if ($children.is(':visible')) {
                     $children.slideUp(150);
-                    $toggle.text('\u25B6');
+                    $toggle.text(LanDocHub.ICONS.ARROW_RIGHT);
                 } else {
                     $children.slideDown(150);
-                    $toggle.text('\u25BC');
+                    $toggle.text(LanDocHub.ICONS.ARROW_DOWN);
                 }
             }
 
@@ -137,9 +137,9 @@ $(function () {
         var ctx = getActiveFolderContext();
         var $btn = $('#btnCreate');
         if (!ctx.hasAny) {
-            $btn.text('\uD83D\uDCC1 \u65B0\u589E\u9879\u76EE');
+            $btn.text('\uD83D\uDCC1 新增项目');
         } else {
-            $btn.text('\uD83D\uDCC1 \u65B0\u589E\u6587\u4EF6\u5939');
+            $btn.text('\uD83D\uDCC1 新增文件夹');
         }
     }
 
@@ -157,42 +157,42 @@ $(function () {
 
         var html =
             '<div class="modal fade" id="createModal" tabindex="-1" role="dialog">' +
-            '<div class="modal-dialog modal-dialog-centered" role="document">' +
+            '<div class="modal-dialog" role="document">' +
             '<div class="modal-content">' +
             '<div class="modal-header">' +
-            '<h5 class="modal-title">\uD83D\uDCC1 \u65B0\u5EFA</h5>' +
+            '<h5 class="modal-title">\uD83D\uDCC1 新建</h5>' +
             '<button type="button" class="close" data-dismiss="modal">&times;</button>' +
             '</div>' +
             '<div class="modal-body">' +
             '<div class="create-mode-toggle mb-3">' +
             '<button type="button" class="btn btn-toggle' + (defaultTab === 'project' ? ' active' : '') + '" ' +
-            'id="btnToggleProject" data-mode="project">\uD83D\uDCC1 \u65B0\u589E\u9879\u76EE</button>' +
+            'id="btnToggleProject" data-mode="project">\uD83D\uDCC1 新增项目</button>' +
             '<button type="button" class="btn btn-toggle' + (defaultTab === 'folder' ? ' active' : '') + '" ' +
-            'id="btnToggleFolder" data-mode="folder">\uD83D\uDCC2 \u65B0\u589E\u6587\u4EF6\u5939</button>' +
+            'id="btnToggleFolder" data-mode="folder">\uD83D\uDCC2 新增文件夹</button>' +
             '</div>' +
             '<div id="paneProject" style="display:' + (defaultTab === 'project' ? 'block' : 'none') + ';">' +
             '<div class="form-group">' +
-            '<label>\u9879\u76EE\u578B\u53F7 <small class="text-muted">(\u82F1\u6587+\u6570\u5B57\uFF0C\u6700\u591A 20 \u5B57\u7B26)</small></label>' +
+            '<label>项目型号 <small class="text-muted">(英文+数字，最多 20 字符)</small></label>' +
             '<input type="text" class="form-control" id="inputProjectModel" ' +
-            'placeholder="\u4F8B\u5982\uFF1APRJ001" maxlength="20">' +
+            'placeholder="例如：PRJ001" maxlength="20">' +
             '<div class="invalid-feedback" id="feedbackProjectModel"></div>' +
             '</div>' +
             '<div class="form-group">' +
-            '<label>\u9879\u76EE\u540D\u79F0 <small class="text-muted">(\u6700\u591A 30 \u5B57\u7B26)</small></label>' +
+            '<label>项目名称 <small class="text-muted">(最多 30 字符)</small></label>' +
             '<input type="text" class="form-control" id="inputProjectName" ' +
-            'placeholder="\u4F8B\u5982\uFF1A\u67D0\u7814\u53D1\u9879\u76EE" maxlength="30">' +
+            'placeholder="例如：某研发项目" maxlength="30">' +
             '<div class="invalid-feedback" id="feedbackProjectName"></div>' +
             '</div>' +
             '</div>' +
             '<div id="paneFolder" style="display:' + (defaultTab === 'folder' ? 'block' : 'none') + ';">' +
             '<div class="form-group">' +
-            '<label>\u6587\u4EF6\u5939\u540D\u79F0</label>' +
+            '<label>文件夹名称</label>' +
             '<input type="text" class="form-control" id="inputFolderName" ' +
-            'placeholder="\u8F93\u5165\u6587\u4EF6\u5939\u540D\u79F0\uFF0C\u6700\u591A 32 \u4E2A\u5B57\u7B26" maxlength="32">' +
+            'placeholder="输入文件夹名称，最多 32 个字符" maxlength="32">' +
             '<div class="invalid-feedback" id="feedbackFolderName"></div>' +
             '</div>' +
             '<div class="form-group">' +
-            '<label>\u7236\u6587\u4EF6\u5939</label>' +
+            '<label>父文件夹</label>' +
             '<div id="selectedParentDisplay"></div>' +
             '<div id="parentFolderPicker" style="display:none; max-height:200px; overflow-y:auto;" ' +
             'class="border rounded p-2 bg-white"></div>' +
@@ -200,8 +200,8 @@ $(function () {
             '</div>' +
             '</div>' +
             '<div class="modal-footer">' +
-            '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">\u53D6\u6D88</button>' +
-            '<button type="button" class="btn btn-primary btn-sm" id="btnConfirmCreate">\u521B\u5EFA</button>' +
+            '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">取消</button>' +
+            '<button type="button" class="btn btn-primary btn-sm" id="btnConfirmCreate">创建</button>' +
             '</div>' +
             '</div>' +
             '</div>' +
@@ -223,13 +223,13 @@ $(function () {
                     name = $match.find('.tree-name').text();
                 }
                 $display.html(
-                    '<span class="text-success">\u2714 \u5F53\u524D\u4F4D\u7F6E\uFF1A' + name + '</span> ' +
-                    '<button class="btn btn-link btn-sm p-0 ml-2" id="btnChangeParent">\u66F4\u6539</button>'
+                    '<span class="text-success">✔ 当前位置：' + name + '</span> ' +
+                    '<button class="btn btn-link btn-sm p-0 ml-2" id="btnChangeParent">更改</button>'
                 );
                 $picker.hide();
             } else {
                 $display.html(
-                    '<span class="text-muted">\u8BF7\u9009\u62E9\u7236\u6587\u4EF6\u5939</span>'
+                    '<span class="text-muted">请选择父文件夹</span>'
                 );
                 loadParentPicker();
                 $picker.show();
@@ -244,14 +244,14 @@ $(function () {
                 dataType: 'json',
             }).done(function (resp) {
                 if (!resp.success || !resp.tree || resp.tree.length === 0) {
-                    $picker.html('<div class="text-muted small">\u6682\u65E0\u53EF\u7528\u6587\u4EF6\u5939</div>');
+                    $picker.html('<div class="text-muted small">暂无可用文件夹</div>');
                     return;
                 }
-                var flat = flattenTree(resp.tree);
+                var flat = LanDocHub.Utils.flattenTree(resp.tree);
                 var listHtml = '';
                 $.each(flat, function (i, f) {
                     var indent = '&nbsp;&nbsp;&nbsp;&nbsp;'.repeat(f.depth);
-                    var icon = f.is_project_root ? '\uD83D\uDCC1' : '\uD83D\uDCC2';
+                    var icon = f.is_project_root ? LanDocHub.ICONS.FOLDER_CLOSED : LanDocHub.ICONS.FOLDER_OPEN;
                     listHtml += '<a href="#" class="d-block small py-1 parent-picker-item ' +
                         (f.id === selectedParentId ? 'font-weight-bold text-primary' : 'text-dark') + '" ' +
                         'data-parent-id="' + f.id + '" data-parent-name="' + f.name + '">' +
@@ -259,24 +259,6 @@ $(function () {
                 });
                 $picker.html(listHtml);
             });
-        }
-
-        function flattenTree(nodes, depth) {
-            depth = depth || 0;
-            var flat = [];
-            $.each(nodes, function (i, node) {
-                flat.push({
-                    id: node.id,
-                    name: node.name,
-                    project_id: node.project_id,
-                    is_project_root: node.is_project_root,
-                    depth: depth,
-                });
-                if (node.children && node.children.length > 0) {
-                    flat = flat.concat(flattenTree(node.children, depth + 1));
-                }
-            });
-            return flat;
         }
 
         renderParentDisplay();
@@ -318,14 +300,14 @@ $(function () {
 
                 if (!model) {
                     $('#inputProjectModel').addClass('is-invalid');
-                    $('#feedbackProjectModel').text('\u9879\u76EE\u578B\u53F7\u4E0D\u80FD\u4E3A\u7A7A');
+                    $('#feedbackProjectModel').text('项目型号不能为空');
                     hasError = true;
                 } else {
                     $('#inputProjectModel').removeClass('is-invalid');
                 }
                 if (!name) {
                     $('#inputProjectName').addClass('is-invalid');
-                    $('#feedbackProjectName').text('\u9879\u76EE\u540D\u79F0\u4E0D\u80FD\u4E3A\u7A7A');
+                    $('#feedbackProjectName').text('项目名称不能为空');
                     hasError = true;
                 } else {
                     $('#inputProjectName').removeClass('is-invalid');
@@ -357,14 +339,14 @@ $(function () {
                     location.reload();
                 })
                 .fail(function () {
-                    alert('\u521B\u5EFA\u5931\u8D25\uFF0C\u8BF7\u5237\u65B0\u9875\u9762\u540E\u91CD\u8BD5');
+                    alert('创建失败，请刷新页面后重试');
                 });
 
             } else {
                 var folderName = $('#inputFolderName').val().trim();
                 if (!folderName) {
                     $('#inputFolderName').addClass('is-invalid');
-                    $('#feedbackFolderName').text('\u6587\u4EF6\u5939\u540D\u79F0\u4E0D\u80FD\u4E3A\u7A7A');
+                    $('#feedbackFolderName').text('文件夹名称不能为空');
                     return;
                 }
                 $('#inputFolderName').removeClass('is-invalid');
@@ -373,7 +355,7 @@ $(function () {
                     selectedParentId = $('.tree-node[data-is-root="true"]').first().data('folder-id');
                 }
                 if (!selectedParentId) {
-                    alert('\u672A\u627E\u5230\u53EF\u7528\u7684\u7236\u6587\u4EF6\u5939');
+                    alert('未找到可用的父文件夹');
                     return;
                 }
 
@@ -402,7 +384,7 @@ $(function () {
                         $('.sidebar .folder-tree').remove();
                         if (treeResp.success && treeResp.tree) {
                             var $tree = buildTreeHtml(treeResp.tree);
-                            $('.sidebar').append($tree);
+                            $tree.insertBefore($('.sidebar .sidebar-footer'));
                             bindTreeEvents($('.sidebar'));
                             $('#btnCreate').off('click').on('click', function () {
                                 showCreateModal(getActiveFolderContext());
@@ -412,7 +394,7 @@ $(function () {
                     });
                 })
                 .fail(function () {
-                    alert('\u521B\u5EFA\u5931\u8D25\uFF0C\u8BF7\u5237\u65B0\u9875\u9762\u540E\u91CD\u8BD5');
+                    alert('创建失败，请刷新页面后重试');
                 });
             }
         });

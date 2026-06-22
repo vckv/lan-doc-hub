@@ -7,23 +7,20 @@ from services.file_service import (
     save_uploaded_file,
     get_files_by_folder,
 )
+from utils.decorators import api_login_required
 
 files_bp = Blueprint('files', __name__, url_prefix='/api/files')
 
 
-def _require_login():
-    if 'user_id' not in session:
-        abort(401, '请先登录')
-
-
 @files_bp.route('/pre-number', methods=['POST'])
+@api_login_required
 def api_pre_number():
     """POST /api/files/pre-number → 预生成文件编号（供前端弹窗预览）"""
-    _require_login()
     return jsonify({'success': True, 'file_number': generate_file_number()})
 
 
 @files_bp.route('/upload', methods=['POST'])
+@api_login_required
 def api_upload_file():
     """POST /api/files/upload → 接收文件并存储
 
@@ -32,7 +29,6 @@ def api_upload_file():
         project_id : 归属项目 ID
         folder_id  : 目标文件夹 ID
     """
-    _require_login()
 
     if 'file' not in request.files:
         return jsonify({'success': False, 'errors': {'file': ['未选择文件']}}), 400
@@ -64,9 +60,9 @@ def api_upload_file():
 
 
 @files_bp.route('', methods=['GET'])
+@api_login_required
 def api_list_files():
     """GET /api/files?folder_id=N → 获取文件夹内文件列表"""
-    _require_login()
 
     folder_id = request.args.get('folder_id', type=int)
     if folder_id is None:

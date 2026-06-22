@@ -9,39 +9,27 @@ from services.folder_service import (
     delete_folder,
     get_ancestors,
 )
+from utils.decorators import api_login_required, api_admin_required
 
 folders_bp = Blueprint('folders', __name__, url_prefix='/api/folders')
 
 
-def _require_login():
-    """要求已登录，否则返回 401 JSON"""
-    if 'user_id' not in session:
-        abort(401, '请先登录')
-
-
-def _require_admin():
-    """要求管理员角色，否则返回 403 JSON"""
-    if session.get('user_role') != 'admin':
-        abort(403, '需要管理员权限')
-
-
 @folders_bp.route('/tree')
+@api_login_required
 def api_get_tree():
     """GET /api/folders/tree → 返回完整文件夹树 JSON"""
-    _require_login()
     tree = get_tree()
     return jsonify({'success': True, 'tree': tree})
 
 
 @folders_bp.route('', methods=['POST'])
+@api_login_required
+@api_admin_required
 def api_create_folder():
     """POST /api/folders → 创建子文件夹
 
     JSON body: {"name": "...", "parent_id": N}
     """
-    _require_login()
-    _require_admin()
-
     data = request.get_json(silent=True) or {}
     name = data.get('name', '')
     parent_id = data.get('parent_id')
@@ -72,14 +60,13 @@ def api_create_folder():
 
 
 @folders_bp.route('/<int:folder_id>', methods=['PUT'])
+@api_login_required
+@api_admin_required
 def api_rename_folder(folder_id):
     """PUT /api/folders/<id> → 重命名文件夹
 
     JSON body: {"name": "新名称"}
     """
-    _require_login()
-    _require_admin()
-
     data = request.get_json(silent=True) or {}
     new_name = data.get('name', '')
 
@@ -101,11 +88,10 @@ def api_rename_folder(folder_id):
 
 
 @folders_bp.route('/<int:folder_id>', methods=['DELETE'])
+@api_login_required
+@api_admin_required
 def api_delete_folder(folder_id):
     """DELETE /api/folders/<id> → 递归删除文件夹"""
-    _require_login()
-    _require_admin()
-
     result = delete_folder(folder_id)
 
     if not result['success']:
@@ -116,10 +102,9 @@ def api_delete_folder(folder_id):
 
 
 @folders_bp.route('/<int:folder_id>/ancestors')
+@api_login_required
 def api_get_ancestors(folder_id):
     """GET /api/folders/<id>/ancestors → 返回祖先链（从根到自身）"""
-    _require_login()
-
     ancestors = get_ancestors(folder_id)
 
     if not ancestors:

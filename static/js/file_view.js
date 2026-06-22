@@ -4,6 +4,7 @@
 $(function () {
     'use strict';
 
+    var ICONS = LanDocHub.ICONS;
     var $container = $('#fileListContainer');
     var $breadcrumb = $('#breadcrumbFolder');
 
@@ -21,66 +22,50 @@ $(function () {
         })
         .done(function (resp) {
             if (!resp.success) {
-                showError('\u52A0\u8F7D\u5931\u8D25');
+                LanDocHub.Utils.showInlineError($container, '加载失败');
                 return;
             }
             renderFileList(resp.files || [], folderId);
         })
         .fail(function () {
-            showError('\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u5237\u65B0\u9875\u9762\u540E\u91CD\u8BD5');
+            LanDocHub.Utils.showInlineError($container, '加载失败，请刷新页面后重试');
         });
     }
 
     function renderFileList(files, folderId) {
-        // 无论空/非空，先记录当前选中的文件夹 ID, 确保"上传文件"能读取
         $container.data('currentFolderId', folderId);
 
         if (files.length === 0) {
-            $container.html(
-                '<div class="file-empty">' +
-                '<div class="icon">\uD83D\uDCC4</div>' +
-                '<p>\u6B64\u6587\u4EF6\u5939\u4E2D\u6682\u65E0\u6587\u4EF6</p>' +
-                '<small>\u70B9\u51FB\u4E0A\u65B9\u201C\u4E0A\u4F20\u6587\u4EF6\u201D\u6309\u94AE\u6DFB\u52A0</small>' +
+            $container.html([
+                '<div class="file-empty">',
+                '<div class="icon">' + ICONS.FILE_EMPTY + '</div>',
+                '<p>此文件夹中暂无文件</p>',
+                '<small>点击上方"上传文件"按钮添加</small>',
                 '</div>'
-            );
+            ].join(''));
             return;
         }
 
-        var html = '<div class="file-table"><table class="table table-hover mb-0">' +
-            '<thead><tr>' +
-            '<th>\u6587\u4EF6\u540D\u79F0</th>' +
-            '<th>\u7F16\u53F7</th>' +
-            '<th>\u7C7B\u578B</th>' +
-            '<th>\u5927\u5C0F</th>' +
-            '<th>\u4E0A\u4F20\u8005</th>' +
-            '<th>\u65F6\u95F4</th>' +
-            '</tr></thead><tbody>';
-
-        $.each(files, function (i, f) {
-            var sizeStr = formatFileSize(f.file_size);
-            var shortcutIcon = f.is_shortcut ? ' \uD83D\uDD17' : '';
-            html += '<tr>' +
-                '<td class="file-name">' + f.original_filename + shortcutIcon + '</td>' +
+        var rows = $.map(files, function (f) {
+            var shortcut = f.is_shortcut ? ' ' + ICONS.LINK : '';
+            return '<tr>' +
+                '<td class="file-name">' + f.original_filename + shortcut + '</td>' +
                 '<td><span class="file-number">' + f.file_number + '</span></td>' +
                 '<td><span class="badge badge-light badge-type">' + f.file_type + '</span></td>' +
-                '<td class="file-meta">' + sizeStr + '</td>' +
+                '<td class="file-meta">' + LanDocHub.Utils.formatFileSize(f.file_size) + '</td>' +
                 '<td class="file-meta">' + (f.uploader_name || '') + '</td>' +
                 '<td class="file-meta">' + f.uploaded_at + '</td>' +
                 '</tr>';
         });
 
-        html += '</tbody></table></div>';
-        $container.html(html);
-    }
-
-    function formatFileSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
-
-    function showError(msg) {
-        $container.html('<div class="file-empty"><p class="text-danger">' + msg + '</p></div>');
+        $container.html([
+            '<div class="file-table"><table class="table table-hover mb-0">',
+            '<thead><tr>',
+            '<th>文件名称</th><th>编号</th><th>类型</th><th>大小</th><th>上传者</th><th>时间</th>',
+            '</tr></thead><tbody>',
+            rows.join(''),
+            '</tbody></table></div>'
+        ].join(''));
     }
 
     // ── 面包屑导航 ──
@@ -92,7 +77,7 @@ $(function () {
         })
         .done(function (resp) {
             if (!resp.success || !resp.ancestors || resp.ancestors.length === 0) {
-                $breadcrumb.html('\uD83D\uDCC2 ' + fallbackName);
+                $breadcrumb.html(ICONS.FOLDER_OPEN + ' ' + fallbackName);
                 return;
             }
             var parts = [];
@@ -107,10 +92,10 @@ $(function () {
                     );
                 }
             });
-            $breadcrumb.html('\uD83D\uDCC2 ' + parts.join(' <span class="breadcrumb-sep">/</span> '));
+            $breadcrumb.html(ICONS.FOLDER_OPEN + ' ' + parts.join(' <span class="breadcrumb-sep">/</span> '));
         })
         .fail(function () {
-            $breadcrumb.html('\uD83D\uDCC2 ' + fallbackName);
+            $breadcrumb.html(ICONS.FOLDER_OPEN + ' ' + fallbackName);
         });
     }
 
