@@ -82,7 +82,7 @@
         <!-- 工具栏（F3-1） -->
         <div class="content-toolbar" id="contentToolbar">
             <span class="breadcrumb-folder" id="breadcrumbFolder">📁 欢迎</span>
-            <button type="button" class="btn btn-primary btn-sm btn-upload" id="btnUploadFile">
+            <button type="button" class="btn btn-primary btn-sm btn-upload ml-auto" id="btnUploadFile">
                 📎 上传文件
             </button>
         </div>
@@ -98,6 +98,28 @@
 <footer class="footer">
     &copy; 2026 LAN Doc Hub
 </footer>
+
+<!-- F3-4：上传方式选择弹窗 -->
+<div class="modal fade" id="uploadMethodModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">选择上传方式</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="关闭">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body text-center">
+        <button type="button" class="btn btn-outline-primary btn-lg btn-block mb-3" id="btnPickFiles">
+          📎 选择文件
+        </button>
+        <button type="button" class="btn btn-outline-success btn-lg btn-block" id="btnPickFolder">
+          📁 选择文件夹
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- F3-3 批量上传弹窗 -->
 <div class="modal fade" id="batchUploadModal" tabindex="-1" role="dialog" aria-hidden="true">
@@ -115,21 +137,9 @@
           <label for="inputBatchProjectId">所属项目</label>
           <select class="form-control" id="inputBatchProjectId"></select>
         </div>
-        <div class="form-row">
-          <div class="form-group col-4">
-            <label for="inputBatchVersionNumber">版本号</label>
-            <select class="form-control" id="inputBatchVersionNumber">
-              <option value="I">I</option><option value="II">II</option>
-              <option value="III">III</option><option value="IV">IV</option>
-              <option value="V">V</option><option value="VI">VI</option>
-              <option value="VII">VII</option><option value="VIII">VIII</option>
-              <option value="IX">IX</option><option value="X">X</option>
-            </select>
-          </div>
-          <div class="form-group col-8">
-            <label for="inputBatchVersionNote">版本备注</label>
-            <input type="text" class="form-control" id="inputBatchVersionNote" maxlength="200" placeholder="可选，200 字符以内">
-          </div>
+        <div class="form-group">
+          <label for="inputBatchVersionNote">版本备注（所有文件共用）</label>
+          <input type="text" class="form-control" id="inputBatchVersionNote" maxlength="200" placeholder="可选，200 字符以内">
         </div>
       </div>
       <div class="modal-footer">

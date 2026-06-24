@@ -402,6 +402,37 @@ html, body {
     font-size: 0.8rem;
     color: #adb5bd;
 }
+/* 文件夹上传 —— 相对路径列 */
+.batch-upload-table .file-relpath {
+    font-size: 0.75rem;
+    color: #6c757d;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* 批量上传 —— 逐文件版本选择列 */
+.batch-upload-table .version-col {
+    width: 70px;
+    text-align: center;
+}
+.batch-upload-table .batch-version-select {
+    min-width: 60px;
+    padding: 2px 4px;
+    font-size: 0.75rem;
+    height: auto;
+}
+/* 上传方式选择弹窗 —— 大按钮 */
+#uploadMethodModal .btn-lg {
+    padding: 16px 20px;
+    font-size: 1.1rem;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+#uploadMethodModal .btn-lg:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
 .batch-upload-table .status-col {
     width: 100px;
     text-align: center;

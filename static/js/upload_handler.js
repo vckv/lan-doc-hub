@@ -10,6 +10,8 @@ $(function () {
 
     var $btnUpload = $('#btnUploadFile');
     var $fileInput = null;
+    var $folderInput = null;
+    var _showRelPath = false;
 
     // ── F3-3：批量上传队列 ──
     var _batchFiles = [];
@@ -35,17 +37,74 @@ $(function () {
                 // ── 单文件：保持现有流程不变 ──
                 onFileSelected(files[0]);
             } else {
-                // ── 多文件：走批量上传流程 ──
-                handleFilesSelected(files);
+                // ── 多文件：走自动上传 ──
+                var folderId = getCurrentFolderId();
+                if (!folderId) {
+                    alert('请先在左侧选择一个文件夹');
+                    $fileInput.val('');
+                    return;
+                }
+                var fileArray = [];
+                for (var i = 0; i < files.length; i++) {
+                    fileArray.push(files[i]);
+                }
+                _showRelPath = false;
+                autoUpload(fileArray, folderId, false);
             }
 
             $fileInput.val('');
         });
     }
 
+    function ensureFolderInput() {
+        if ($folderInput) return;
+        $folderInput = $(
+            '<input type="file" style="display:none;" webkitdirectory>'
+        );
+        $('body').append($folderInput);
+
+        $folderInput.on('change', function () {
+            var files = this.files;
+            if (!files || files.length === 0) return;
+
+            var fileArray = [];
+            for (var i = 0; i < files.length; i++) {
+                var file = files[i];
+                var parts = (file.webkitRelativePath || '').split('/');
+                if (parts.length > 1) {
+                    parts.shift();
+                    file.relativePath = parts.join('/');
+                } else {
+                    file.relativePath = '';
+                }
+                fileArray.push(file);
+            }
+
+            var folderId = getCurrentFolderId();
+            if (!folderId) {
+                alert('请先在左侧选择一个文件夹');
+                $folderInput.val('');
+                return;
+            }
+            autoUpload(fileArray, folderId, true);
+            $folderInput.val('');
+        });
+    }
+
     $btnUpload.on('click', function () {
+        $('#uploadMethodModal').modal('show');
+    });
+
+    $('#btnPickFiles').on('click', function () {
+        $('#uploadMethodModal').modal('hide');
         ensureFileInput();
         $fileInput.click();
+    });
+
+    $('#btnPickFolder').on('click', function () {
+        $('#uploadMethodModal').modal('hide');
+        ensureFolderInput();
+        $folderInput.click();
     });
 
     // ── F3-3：拖放上传 ──
@@ -91,9 +150,38 @@ $(function () {
         dragCounter = 0;
         $('#dropZoneOverlay').removeClass('active');
 
-        var files = e.originalEvent.dataTransfer.files;
-        if (files && files.length > 0) {
-            handleFilesSelected(files);
+        var items = e.originalEvent.dataTransfer.items;
+        var hasDirectory = false;
+        if (items && items.length > 0) {
+            for (var i = 0; i < items.length; i++) {
+                var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+                if (entry && entry.isDirectory) {
+                    hasDirectory = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasDirectory) {
+            traverseDroppedItems(items, function (fileArray) {
+                if (fileArray.length === 0) {
+                    alert('所选文件夹中没有文件');
+                    return;
+                }
+                var folderId = getCurrentFolderId();
+                if (!folderId) {
+                    alert('请先在左侧选择一个文件夹');
+                    return;
+                }
+                _showRelPath = true;
+                showBatchUploadModal(fileArray, folderId);
+            });
+        } else {
+            var files = e.originalEvent.dataTransfer.files;
+            if (files && files.length > 0) {
+                _showRelPath = false;
+                handleFilesSelected(files);
+            }
         }
     });
 
@@ -545,6 +633,163 @@ $(function () {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // F3-4：文件夹上传 —— 递归遍历
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 递归遍历单个 Entry（文件或目录），将文件压入 fileArray
+     */
+    function traverseEntry(entry, basePath, fileArray, done) {
+        if (entry.isFile) {
+            entry.file(function (file) {
+                file.relativePath = basePath;
+                fileArray.push(file);
+                done();
+            }, function () {
+                done();
+            });
+        } else if (entry.isDirectory) {
+            var dirReader = entry.createReader();
+            var dirPath = basePath ? basePath + '/' + entry.name : entry.name;
+            var allEntries = [];
+            function readBatch() {
+                dirReader.readEntries(function (entries) {
+                    if (entries.length === 0) {
+                        if (allEntries.length === 0) {
+                            done();  // 空文件夹：跳过
+                            return;
+                        }
+                        var pending = allEntries.length;
+                        for (var i = 0; i < allEntries.length; i++) {
+                            traverseEntry(allEntries[i], dirPath, fileArray, function () {
+                                pending--;
+                                if (pending === 0) done();
+                            });
+                        }
+                    } else {
+                        allEntries = allEntries.concat(Array.prototype.slice.call(entries));
+                        readBatch();
+                    }
+                }, function () {
+                    done();
+                });
+            }
+            readBatch();
+        } else {
+            done();
+        }
+    }
+
+    /**
+     * 遍历拖放的 items 列表，提取所有文件（含文件夹递归）
+     */
+    function traverseDroppedItems(items, callback) {
+        var fileArray = [];
+        var pending = 0;
+        var entries = [];
+
+        for (var i = 0; i < items.length; i++) {
+            var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+            if (entry) {
+                entries.push(entry);
+            }
+        }
+
+        if (entries.length === 0) {
+            callback(fileArray);
+            return;
+        }
+
+        pending = entries.length;
+        for (var j = 0; j < entries.length; j++) {
+            traverseEntry(entries[j], '', fileArray, function () {
+                pending--;
+                if (pending === 0) callback(fileArray);
+            });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // F3-4：自动上传
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 自动上传 —— 跳过确认弹窗，直接用默认项目+默认版本上传
+     * @param {File[]} fileArray
+     * @param {number} folderId
+     * @param {boolean} showRelPath 是否显示相对路径列
+     */
+    function autoUpload(fileArray, folderId, showRelPath) {
+        if (fileArray.length === 0) {
+            alert('没有可上传的文件');
+            return;
+        }
+
+        var projectId = $('.tree-node[data-folder-id="' + folderId + '"]').data('project-id');
+        if (!projectId) {
+            alert('无法确定当前文件夹所属项目，请先创建项目');
+            return;
+        }
+
+        _showRelPath = showRelPath;
+        _batchFiles = fileArray;
+        _batchFolderId = folderId;
+
+        var $list = $('#batchFileList').empty();
+        var totalSize = 0;
+
+        var rowsHtml = '<table class="batch-upload-table"><thead><tr>' +
+            '<th>文件名</th>';
+        if (showRelPath) {
+            rowsHtml += '<th>相对路径</th>';
+        }
+        rowsHtml += '<th>大小</th><th class="version-col">版本</th><th class="status-col">状态</th></tr></thead><tbody>';
+
+        fileArray.forEach(function (file, idx) {
+            var sizeStr = LanDocHub.Utils.formatFileSize(file.size);
+            totalSize += file.size;
+            var nameMaxLen = showRelPath ? 30 : 40;
+            rowsHtml += '<tr id="batchRow' + idx + '">' +
+                '<td><span title="' + LanDocHub.Utils.escapeHtml(file.name) + '">' +
+                LanDocHub.Utils.escapeHtml(truncateFileName(file.name, nameMaxLen)) + '</span></td>';
+            if (showRelPath) {
+                var relPath = file.relativePath || '';
+                rowsHtml += '<td class="file-relpath">' + LanDocHub.Utils.escapeHtml(relPath) + '</td>';
+            }
+            rowsHtml += '<td class="file-size">' + sizeStr + '</td>' +
+                '<td class="version-col"><select class="form-control form-control-sm batch-version-select" id="batchVersion' + idx + '">' +
+                '<option value="I">I</option><option value="II">II</option>' +
+                '<option value="III">III</option><option value="IV">IV</option>' +
+                '<option value="V">V</option><option value="VI">VI</option>' +
+                '<option value="VII">VII</option><option value="VIII">VIII</option>' +
+                '<option value="IX">IX</option><option value="X">X</option>' +
+                '</select></td>' +
+                '<td class="status-col"><span class="status-pending" id="batchStatus' + idx + '">等待上传</span>' +
+                '<div class="upload-progress-wrap" style="display:none;" id="batchProgressWrap' + idx + '">' +
+                '<div class="upload-progress-bar" id="batchProgress' + idx + '"></div></div></td>' +
+                '</tr>';
+        });
+        rowsHtml += '</tbody></table>';
+
+        rowsHtml += '<div style="font-size:0.82rem;color:#6b7280;margin-bottom:12px;">' +
+            '共 <strong>' + fileArray.length + '</strong> 个文件，总大小 <strong>' +
+            LanDocHub.Utils.formatFileSize(totalSize) + '</strong></div>';
+
+        $list.html(rowsHtml);
+
+        $('#batchUploadModal .modal-title').text(showRelPath ? '\u{1F4C1} 文件夹上传' : '批量上传');
+        $('#batchUploadModal .modal-dialog').css('max-width', showRelPath ? '720px' : '620px');
+
+        // 隐藏确认表单，直接开始上传
+        $('#inputBatchProjectId, #inputBatchVersionNote, #btnBatchConfirmUpload')
+            .closest('.form-group, .mt-3').hide();
+
+        $('#batchUploadModal').modal('show');
+
+        uploadBatch(fileArray, projectId, folderId, 'I', '');
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // F3-3：批量上传
     // ═══════════════════════════════════════════════════════════
 
@@ -571,22 +816,68 @@ $(function () {
      * @param {File[]} fileArray
      * @param {number} folderId
      */
+    function fetchBatchNextVersions(projectId) {
+        if (!projectId || !_batchFiles || _batchFiles.length === 0) return;
+
+        var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+
+        for (var i = 0; i < _batchFiles.length; i++) {
+            (function (idx) {
+                var filename = _batchFiles[idx].name;
+                $.ajax({
+                    url: '/api/files/next-version',
+                    method: 'GET',
+                    data: { filename: filename, project_id: projectId },
+                    headers: { 'X-CSRF-Token': csrfToken },
+                    dataType: 'json'
+                }).done(function (resp) {
+                    if (resp.success && resp.version_number) {
+                        var $select = $('#batchVersion' + idx);
+                        if ($select.length && resp.version_number !== 'I') {
+                            $select.val(resp.version_number);
+                        }
+                    }
+                }).fail(function () {
+                    // 检索失败保持默认 "I"
+                });
+            })(i);
+        }
+    }
+
     function showBatchUploadModal(fileArray, folderId) {
         _batchFiles = fileArray;
         _batchFolderId = folderId;
 
         var $list = $('#batchFileList').empty();
         var totalSize = 0;
+        var showRelPath = _showRelPath;
+
         var rowsHtml = '<table class="batch-upload-table"><thead><tr>' +
-            '<th>文件名</th><th>大小</th><th class="status-col">状态</th></tr></thead><tbody>';
+            '<th>文件名</th>';
+        if (showRelPath) {
+            rowsHtml += '<th>相对路径</th>';
+        }
+        rowsHtml += '<th>大小</th><th class="version-col">版本</th><th class="status-col">状态</th></tr></thead><tbody>';
 
         fileArray.forEach(function (file, idx) {
             var sizeStr = LanDocHub.Utils.formatFileSize(file.size);
             totalSize += file.size;
+            var nameMaxLen = showRelPath ? 30 : 40;
             rowsHtml += '<tr id="batchRow' + idx + '">' +
                 '<td><span title="' + LanDocHub.Utils.escapeHtml(file.name) + '">' +
-                LanDocHub.Utils.escapeHtml(truncateFileName(file.name, 40)) + '</span></td>' +
-                '<td class="file-size">' + sizeStr + '</td>' +
+                LanDocHub.Utils.escapeHtml(truncateFileName(file.name, nameMaxLen)) + '</span></td>';
+            if (showRelPath) {
+                var relPath = file.relativePath || '';
+                rowsHtml += '<td class="file-relpath">' + LanDocHub.Utils.escapeHtml(relPath) + '</td>';
+            }
+            rowsHtml += '<td class="file-size">' + sizeStr + '</td>' +
+                '<td class="version-col"><select class="form-control form-control-sm batch-version-select" id="batchVersion' + idx + '">' +
+                '<option value="I">I</option><option value="II">II</option>' +
+                '<option value="III">III</option><option value="IV">IV</option>' +
+                '<option value="V">V</option><option value="VI">VI</option>' +
+                '<option value="VII">VII</option><option value="VIII">VIII</option>' +
+                '<option value="IX">IX</option><option value="X">X</option>' +
+                '</select></td>' +
                 '<td class="status-col"><span class="status-pending" id="batchStatus' + idx + '">等待上传</span>' +
                 '<div class="upload-progress-wrap" style="display:none;" id="batchProgressWrap' + idx + '">' +
                 '<div class="upload-progress-bar" id="batchProgress' + idx + '"></div></div></td>' +
@@ -599,6 +890,14 @@ $(function () {
             LanDocHub.Utils.formatFileSize(totalSize) + '</strong></div>';
 
         $list.html(rowsHtml);
+
+        // 调整弹窗标题和宽度
+        $('#batchUploadModal .modal-title').text(showRelPath ? '\u{1F4C1} 文件夹上传' : '批量上传');
+        $('#batchUploadModal .modal-dialog').css('max-width', showRelPath ? '720px' : '620px');
+
+        // 恢复确认表单（autoUpload 可能已隐藏）
+        $('#inputBatchProjectId, #inputBatchVersionNote, #btnBatchConfirmUpload')
+            .closest('.form-group, .form-row, .mt-3').show();
 
         // 加载项目列表
         var $projectSelect = $('#inputBatchProjectId').empty();
@@ -618,6 +917,17 @@ $(function () {
             $projectSelect.val(defaultProjectId);
         }
 
+        // 逐文件自动检索最新迭代版本号
+        fetchBatchNextVersions(defaultProjectId);
+
+        // 项目切换时重新检索版本号
+        $projectSelect.off('change.batchVersion').on('change.batchVersion', function () {
+            var pid = $(this).val();
+            if (pid) {
+                fetchBatchNextVersions(parseInt(pid));
+            }
+        });
+
         // 重置按钮
         var $confirmBtn = $('#btnBatchConfirmUpload');
         $confirmBtn.prop('disabled', false);
@@ -628,12 +938,18 @@ $(function () {
                 return;
             }
 
-            var versionNumber = $('#inputBatchVersionNumber').val() || 'I';
             var versionNote = $('#inputBatchVersionNote').val() || '';
             var fid = _batchFolderId;
 
+            // 从每行收集各自的版本号
+            var batchVersions = [];
+            for (var i = 0; i < _batchFiles.length; i++) {
+                var v = $('#batchVersion' + i).val() || 'I';
+                batchVersions.push(v);
+            }
+
             $(this).prop('disabled', true);
-            uploadBatch(_batchFiles, projectId, fid, versionNumber, versionNote);
+            uploadBatch(_batchFiles, projectId, fid, batchVersions, versionNote);
         });
 
         $('#batchUploadModal').modal('show');
@@ -642,7 +958,7 @@ $(function () {
     /**
      * 串行批量上传
      */
-    function uploadBatch(fileArray, projectId, folderId, versionNumber, versionNote) {
+    function uploadBatch(fileArray, projectId, folderId, versionNumbers, versionNote) {
         var total = fileArray.length;
         var completed = 0;
         var failed = 0;
@@ -680,7 +996,7 @@ $(function () {
             formData.append('file', file);
             formData.append('project_id', projectId);
             formData.append('folder_id', folderId);
-            formData.append('version_number', versionNumber);
+            formData.append('version_number', Array.isArray(versionNumbers) ? versionNumbers[index] : versionNumbers);
             formData.append('version_note', versionNote);
 
             var xhr = new XMLHttpRequest();
