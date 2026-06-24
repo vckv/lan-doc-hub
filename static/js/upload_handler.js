@@ -11,6 +11,10 @@ $(function () {
     var $btnUpload = $('#btnUploadFile');
     var $fileInput = null;
 
+    // ── F3-3：批量上传队列 ──
+    var _batchFiles = [];
+    var _batchFolderId = null;
+
     function getCurrentFolderId() {
         return $('#fileListContainer').data('currentFolderId');
     }
@@ -19,14 +23,22 @@ $(function () {
         if ($fileInput) return;
         $fileInput = $(
             '<input type="file" style="display:none;" ' +
-            'accept="' + LanDocHub.CONFIG.ACCEPTED_FILE_TYPES + '">'
+            'accept="' + LanDocHub.CONFIG.ACCEPTED_FILE_TYPES + '" multiple>'
         );
         $('body').append($fileInput);
 
         $fileInput.on('change', function () {
-            var file = this.files[0];
-            if (!file) return;
-            onFileSelected(file);
+            var files = this.files;
+            if (!files || files.length === 0) return;
+
+            if (files.length === 1) {
+                // ── 单文件：保持现有流程不变 ──
+                onFileSelected(files[0]);
+            } else {
+                // ── 多文件：走批量上传流程 ──
+                handleFilesSelected(files);
+            }
+
             $fileInput.val('');
         });
     }
@@ -34,6 +46,55 @@ $(function () {
     $btnUpload.on('click', function () {
         ensureFileInput();
         $fileInput.click();
+    });
+
+    // ── F3-3：拖放上传 ──
+    function ensureDropZone() {
+        if ($('#dropZoneOverlay').length) return;
+        var $overlay = $(
+            '<div id="dropZoneOverlay" class="drop-zone-overlay">' +
+            '<div class="drop-zone-hint">' +
+            '<div class="icon">&#128229;</div>' +
+            '<div class="title">释放文件以上传</div>' +
+            '<div class="sub">支持拖拽一个或多个文件</div>' +
+            '</div></div>'
+        );
+        $('body').append($overlay);
+    }
+
+    var dragCounter = 0;
+    $(document).on('dragover', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+    $(document).on('dragenter', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter++;
+        if (dragCounter === 1) {
+            ensureDropZone();
+            $('#dropZoneOverlay').addClass('active');
+        }
+    });
+    $(document).on('dragleave', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
+            $('#dropZoneOverlay').removeClass('active');
+        }
+    });
+    $(document).on('drop', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter = 0;
+        $('#dropZoneOverlay').removeClass('active');
+
+        var files = e.originalEvent.dataTransfer.files;
+        if (files && files.length > 0) {
+            handleFilesSelected(files);
+        }
     });
 
     function onFileSelected(file) {
@@ -481,5 +542,195 @@ $(function () {
             $modal.remove();
         });
         $modal.modal('show');
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // F3-3：批量上传
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 处理多文件选择或拖放
+     * @param {FileList|File[]} files
+     */
+    function handleFilesSelected(files) {
+        var fileArray = [];
+        for (var i = 0; i < files.length; i++) {
+            fileArray.push(files[i]);
+        }
+
+        var folderId = getCurrentFolderId();
+        if (!folderId) {
+            alert('请先在左侧选择一个文件夹');
+            return;
+        }
+        showBatchUploadModal(fileArray, folderId);
+    }
+
+    /**
+     * 显示批量上传弹窗
+     * @param {File[]} fileArray
+     * @param {number} folderId
+     */
+    function showBatchUploadModal(fileArray, folderId) {
+        _batchFiles = fileArray;
+        _batchFolderId = folderId;
+
+        var $list = $('#batchFileList').empty();
+        var totalSize = 0;
+        var rowsHtml = '<table class="batch-upload-table"><thead><tr>' +
+            '<th>文件名</th><th>大小</th><th class="status-col">状态</th></tr></thead><tbody>';
+
+        fileArray.forEach(function (file, idx) {
+            var sizeStr = LanDocHub.Utils.formatFileSize(file.size);
+            totalSize += file.size;
+            rowsHtml += '<tr id="batchRow' + idx + '">' +
+                '<td><span title="' + LanDocHub.Utils.escapeHtml(file.name) + '">' +
+                LanDocHub.Utils.escapeHtml(truncateFileName(file.name, 40)) + '</span></td>' +
+                '<td class="file-size">' + sizeStr + '</td>' +
+                '<td class="status-col"><span class="status-pending" id="batchStatus' + idx + '">等待上传</span>' +
+                '<div class="upload-progress-wrap" style="display:none;" id="batchProgressWrap' + idx + '">' +
+                '<div class="upload-progress-bar" id="batchProgress' + idx + '"></div></div></td>' +
+                '</tr>';
+        });
+        rowsHtml += '</tbody></table>';
+
+        rowsHtml += '<div style="font-size:0.82rem;color:#6b7280;margin-bottom:12px;">' +
+            '共 <strong>' + fileArray.length + '</strong> 个文件，总大小 <strong>' +
+            LanDocHub.Utils.formatFileSize(totalSize) + '</strong></div>';
+
+        $list.html(rowsHtml);
+
+        // 加载项目列表
+        var $projectSelect = $('#inputBatchProjectId').empty();
+        $projectSelect.append('<option value="">-- 请选择项目 --</option>');
+        $('.tree-node[data-is-root="true"]').each(function () {
+            var $node = $(this);
+            var pid = $node.data('project-id');
+            var pname = $node.find('.tree-name').text().trim();
+            if (pid && pname) {
+                $projectSelect.append('<option value="' + pid + '">' + pname + '</option>');
+            }
+        });
+
+        // 默认选中当前文件夹所属项目
+        var defaultProjectId = $('.tree-node[data-folder-id="' + folderId + '"]').data('project-id');
+        if (defaultProjectId) {
+            $projectSelect.val(defaultProjectId);
+        }
+
+        // 重置按钮
+        var $confirmBtn = $('#btnBatchConfirmUpload');
+        $confirmBtn.prop('disabled', false);
+        $confirmBtn.off('click').on('click', function () {
+            var projectId = $('#inputBatchProjectId').val();
+            if (!projectId) {
+                alert('请选择所属项目');
+                return;
+            }
+
+            var versionNumber = $('#inputBatchVersionNumber').val() || 'I';
+            var versionNote = $('#inputBatchVersionNote').val() || '';
+            var fid = _batchFolderId;
+
+            $(this).prop('disabled', true);
+            uploadBatch(_batchFiles, projectId, fid, versionNumber, versionNote);
+        });
+
+        $('#batchUploadModal').modal('show');
+    }
+
+    /**
+     * 串行批量上传
+     */
+    function uploadBatch(fileArray, projectId, folderId, versionNumber, versionNote) {
+        var total = fileArray.length;
+        var completed = 0;
+        var failed = 0;
+        var csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+        function uploadNext(index) {
+            if (index >= total) {
+                $('#batchUploadModal').modal('hide');
+
+                var folderName = '';
+                if (folderId) {
+                    var $activeNode = $('#folderTree').find('.tree-node.active');
+                    if ($activeNode.length) {
+                        folderName = $activeNode.find('.tree-name').text().trim();
+                    }
+                }
+                $('body').trigger('folder-selected', [{ folderId: folderId, folderName: folderName }]);
+
+                if (failed > 0) {
+                    alert('上传完成：' + completed + ' 个成功，' + failed + ' 个失败');
+                }
+                return;
+            }
+
+            var file = fileArray[index];
+            var $status = $('#batchStatus' + index);
+            var $progressWrap = $('#batchProgressWrap' + index);
+            var $progressBar = $('#batchProgress' + index);
+
+            $status.removeClass('status-pending').addClass('status-uploading').text('上传中…');
+            $progressWrap.show();
+            $progressBar.css('width', '0%');
+
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('project_id', projectId);
+            formData.append('folder_id', folderId);
+            formData.append('version_number', versionNumber);
+            formData.append('version_note', versionNote);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/files/upload', true);
+            xhr.setRequestHeader('X-CSRF-Token', csrfToken);
+
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable) {
+                    var pct = Math.round((e.loaded / e.total) * 100);
+                    $progressBar.css('width', pct + '%');
+                }
+            };
+
+            xhr.onload = function () {
+                if (xhr.status === 201) {
+                    completed++;
+                    $status.removeClass('status-uploading').addClass('status-done').text('✓ 完成');
+                    $progressBar.css('width', '100%');
+                } else {
+                    failed++;
+                    $status.removeClass('status-uploading').addClass('status-fail').text('✗ 失败');
+                    $progressBar.css('background', '#dc3545');
+                }
+                uploadNext(index + 1);
+            };
+
+            xhr.onerror = function () {
+                failed++;
+                $status.removeClass('status-uploading').addClass('status-fail').text('✗ 失败');
+                $progressBar.css('background', '#dc3545');
+                uploadNext(index + 1);
+            };
+
+            xhr.send(formData);
+        }
+
+        uploadNext(0);
+    }
+
+    /**
+     * 截断文件名用于显示
+     */
+    function truncateFileName(name, maxLen) {
+        if (name.length <= maxLen) return name;
+        var extIndex = name.lastIndexOf('.');
+        if (extIndex === -1) return name.substring(0, maxLen - 3) + '...';
+        var ext = name.substring(extIndex);
+        var base = name.substring(0, extIndex);
+        var avail = maxLen - ext.length - 3;
+        if (avail < 5) return name.substring(0, maxLen - 3) + '...';
+        return base.substring(0, avail) + '...' + ext;
     }
 });

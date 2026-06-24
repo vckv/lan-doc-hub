@@ -99,6 +99,47 @@
     &copy; 2026 LAN Doc Hub
 </footer>
 
+<!-- F3-3 批量上传弹窗 -->
+<div class="modal fade" id="batchUploadModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">批量上传</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="关闭">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="batch-file-list" id="batchFileList"></div>
+        <div class="form-group">
+          <label for="inputBatchProjectId">所属项目</label>
+          <select class="form-control" id="inputBatchProjectId"></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group col-4">
+            <label for="inputBatchVersionNumber">版本号</label>
+            <select class="form-control" id="inputBatchVersionNumber">
+              <option value="I">I</option><option value="II">II</option>
+              <option value="III">III</option><option value="IV">IV</option>
+              <option value="V">V</option><option value="VI">VI</option>
+              <option value="VII">VII</option><option value="VIII">VIII</option>
+              <option value="IX">IX</option><option value="X">X</option>
+            </select>
+          </div>
+          <div class="form-group col-8">
+            <label for="inputBatchVersionNote">版本备注</label>
+            <input type="text" class="form-control" id="inputBatchVersionNote" maxlength="200" placeholder="可选，200 字符以内">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" id="btnBatchConfirmUpload" disabled>确认上传</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- jQuery -->
 <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
 <!-- Bootstrap 4 JS -->

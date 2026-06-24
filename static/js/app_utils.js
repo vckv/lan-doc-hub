@@ -22,6 +22,21 @@ LanDocHub.Utils = {
     },
 
     /**
+     * HTML 转义（防 XSS）
+     * @param {string} str
+     * @returns {string}
+     */
+    escapeHtml: function (str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    /**
      * 文件夹树扁平化（把嵌套树结构展平为一维数组）
      * @param {Array}  nodes  树节点数组
      * @param {number} depth  当前深度
