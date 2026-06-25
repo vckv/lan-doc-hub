@@ -97,15 +97,13 @@ $(function () {
             // 操作列
             var operations =
                 '<button class="btn btn-outline-secondary btn-xs btn-preview-file" ' +
-                'data-file-id="' + f.id + '" title="预览文件">' + ICONS.SEARCH + '</button>' +
+                'data-file-id="' + f.id + '" title="预览文件">预览</button>' +
                 '<button class="btn btn-outline-primary btn-xs btn-download-file" ' +
-                'data-file-id="' + f.id + '" title="下载文件">' + ICONS.UPLOAD + '</button>';
+                'data-file-id="' + f.id + '" title="下载文件">下载</button>';
 
             return '<tr data-file-id="' + f.id + '">' +
                 '<td class="file-type-icon" title="' + LanDocHub.Utils.escapeHtml(f.file_type) + '">' + typeIcon + '</td>' +
-                '<td><span class="file-number">' + f.file_number + '</span></td>' +
                 '<td class="file-name">' + shortcut + f.original_filename + '</td>' +
-                '<td class="file-meta">' + LanDocHub.Utils.formatFileSize(f.file_size) + '</td>' +
                 '<td class="text-center" style="white-space:nowrap;">' +
                 '<span class="badge badge-secondary mr-1">' + (f.version_number || 'I') + '</span>' +
                 (f.has_versions
@@ -116,6 +114,7 @@ $(function () {
                 (f.version_note ? '<div class="small text-muted">' + LanDocHub.Utils.escapeHtml(f.version_note) + '</div>' : '') +
                 '</td>' +
                 '<td><span class="badge badge-info">' + (f.project_model || '') + '</span></td>' +
+                '<td class="file-meta">' + LanDocHub.Utils.formatFileSize(f.file_size) + '</td>' +
                 '<td>' + tagBadges + '</td>' +
                 '<td class="file-meta">' + (f.uploader_name || '') + '</td>' +
                 '<td class="file-meta">' + f.uploaded_at + '</td>' +
@@ -126,9 +125,15 @@ $(function () {
         var tableHtml = [
             '<div class="file-table"><table class="table table-hover mb-0">',
             '<thead><tr>',
-            '<th class="col-type-icon">类型</th>',
-            '<th>编号</th><th>文件名</th><th>大小</th><th>版本</th><th>型号</th>',
-            '<th>标签</th><th>上传者</th><th>时间</th><th class="col-operations">操作</th>',
+            '<th class="col-type-icon sortable-header" data-sort="file_type">类型 <span class="sort-arrow"></span></th>',
+            '<th class="sortable-header" data-sort="original_filename">文件名 <span class="sort-arrow"></span></th>',
+            '<th class="sortable-header" data-sort="version_number">版本 <span class="sort-arrow"></span></th>',
+            '<th class="sortable-header" data-sort="model">型号 <span class="sort-arrow"></span></th>',
+            '<th class="sortable-header" data-sort="file_size">大小 <span class="sort-arrow"></span></th>',
+            '<th>标签</th>',
+            '<th class="sortable-header" data-sort="uploader_name">上传者 <span class="sort-arrow"></span></th>',
+            '<th class="sortable-header" data-sort="created_at">时间 <span class="sort-arrow"></span></th>',
+            '<th class="col-operations">操作</th>',
             '</tr></thead><tbody>',
             rows.join(''),
             '</tbody></table></div>',
