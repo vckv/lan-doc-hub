@@ -2,6 +2,7 @@
 
 from flask import Blueprint, jsonify, request, session, abort, current_app
 
+from models import File
 from services.file_service import (
     generate_file_number,
     save_uploaded_file,
@@ -32,6 +33,50 @@ def api_next_version():
     from services.file_service import next_version_number
     version = next_version_number(filename, project_id)
     return jsonify({'success': True, 'version_number': version})
+
+
+@files_bp.route('/check-duplicate')
+@api_login_required
+def api_check_duplicate():
+    """GET /api/files/check-duplicate?filename=xxx&project_id=yyy
+    → 检测目标项目中是否存在同名当前版本文件"""
+    filename = request.args.get('filename', '').strip()
+    project_id = request.args.get('project_id', type=int)
+
+    if not filename or not project_id:
+        return jsonify({
+            'success': False,
+            'errors': {'params': ['缺少 filename 或 project_id']},
+        }), 400
+
+    existing = (
+        File.query
+        .filter_by(
+            original_filename=filename,
+            project_id=project_id,
+            is_current=True,
+        )
+        .first()
+    )
+
+    if not existing:
+        return jsonify({'success': True, 'exists': False})
+
+    return jsonify({
+        'success': True,
+        'exists': True,
+        'existing_file': {
+            'id': existing.id,
+            'original_filename': existing.original_filename,
+            'file_number': existing.file_number,
+            'version_number': existing.version_number,
+            'file_size': existing.file_size,
+            'file_type': existing.file_type,
+            'folder_id': existing.folder_id,
+            'uploader_name': existing.uploader.display_name if existing.uploader else '',
+            'uploaded_at': existing.created_at.strftime('%Y-%m-%d %H:%M'),
+        },
+    })
 
 
 @files_bp.route('/upload', methods=['POST'])
@@ -66,6 +111,23 @@ def api_upload_file():
         except (ValueError, TypeError):
             pass
 
+    # ── F5-1: 同名文件处理参数 ──
+    duplicate_action = request.form.get('duplicate_action', '').strip() or None
+    new_filename = request.form.get('new_filename', '').strip() or None
+
+    # 参数校验
+    if duplicate_action and duplicate_action not in ('override', 'save_as_new'):
+        return jsonify({
+            'success': False,
+            'errors': {'duplicate_action': ['无效的操作']},
+        }), 400
+
+    if duplicate_action == 'save_as_new' and not new_filename:
+        return jsonify({
+            'success': False,
+            'errors': {'new_filename': ['缺少新文件名']},
+        }), 400
+
     if not project_id or not folder_id:
         return jsonify({
             'success': False,
@@ -83,6 +145,8 @@ def api_upload_file():
         version_number=version_number,
         version_note=version_note,
         tag_ids=tag_ids,
+        duplicate_action=duplicate_action,
+        new_filename=new_filename,
     )
 
     if not result['success']:

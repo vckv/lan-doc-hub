@@ -588,3 +588,11 @@ html, body {
     border-radius: 50%;
     margin-right: 4px;
 }
+
+/* ── F5-1 同名文件检测模态框 ── */
+#dupExistingInfo {
+    background: #f8f9fa;
+    border-radius: 4px;
+    padding: 8px 12px;
+    border-left: 3px solid #ffc107;
+}

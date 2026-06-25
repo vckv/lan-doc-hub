@@ -564,13 +564,71 @@ $(function () {
         });
     }
 
+    function generateSuffixedName(filename) {
+        var dotIndex = filename.lastIndexOf('.');
+        if (dotIndex === -1) {
+            return filename + ' (1)';
+        }
+        var base = filename.substring(0, dotIndex);
+        var ext = filename.substring(dotIndex);
+        return base + ' (1)' + ext;
+    }
+
     function uploadFile(file, projectId, folderId) {
+        var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+
+        // F5-1: 先检测同名文件
+        $.ajax({
+            url: '/api/files/check-duplicate',
+            method: 'GET',
+            data: { filename: file.name, project_id: projectId },
+            headers: { 'X-CSRF-Token': csrfToken },
+            dataType: 'json',
+        }).done(function (resp) {
+            if (resp.success && resp.exists) {
+                // 有同名文件 → 弹出确认弹窗
+                DuplicateCheck.show(
+                    file,
+                    resp.existing_file,
+                    projectId,
+                    folderId,
+                    // 覆盖为新版本
+                    function () {
+                        doUploadFile(file, projectId, folderId, 'override', null);
+                    },
+                    // 另存为新文件
+                    function () {
+                        var newName = generateSuffixedName(file.name);
+                        doUploadFile(file, projectId, folderId, 'save_as_new', newName);
+                    },
+                    // 取消 — 什么都不做
+                    function () {}
+                );
+            } else {
+                // 无同名文件 → 直接上传
+                doUploadFile(file, projectId, folderId, null, null);
+            }
+        }).fail(function () {
+            // 检测失败 → 降级为直接上传（不阻塞用户）
+            doUploadFile(file, projectId, folderId, null, null);
+        });
+    }
+
+    function doUploadFile(file, projectId, folderId, duplicateAction, newFilename) {
         var formData = new FormData();
         formData.append('file', file);
         formData.append('project_id', projectId);
         formData.append('folder_id', folderId);
         formData.append('version_number', $('#inputVersionNumber').val() || 'I');
         formData.append('version_note', $('#inputVersionNote').val() || '');
+
+        // F5-1: 同名文件处理参数
+        if (duplicateAction) {
+            formData.append('duplicate_action', duplicateAction);
+        }
+        if (newFilename) {
+            formData.append('new_filename', newFilename);
+        }
 
         // F4-1: 收集选中的标签 ID
         var tagIds = [];
@@ -1223,12 +1281,52 @@ $(function () {
             $progressWrap.show();
             $progressBar.css('width', '0%');
 
+            // F5-1: 批量上传前检测同名文件
+            $.ajax({
+                url: '/api/files/check-duplicate',
+                method: 'GET',
+                data: { filename: file.name, project_id: projectId },
+                headers: { 'X-CSRF-Token': csrfToken },
+                dataType: 'json',
+            }).done(function (resp) {
+                var dupAction = null;
+                var newFilename = null;
+
+                if (resp.success && resp.exists) {
+                    dupAction = 'override';
+                }
+
+                _sendBatchFile(index, file, projectId, folderId,
+                    Array.isArray(versionNumbers) ? versionNumbers[index] : versionNumbers,
+                    versionNote, dupAction, newFilename);
+            }).fail(function () {
+                // 检测失败 → 降级为直接上传
+                _sendBatchFile(index, file, projectId, folderId,
+                    Array.isArray(versionNumbers) ? versionNumbers[index] : versionNumbers,
+                    versionNote, null, null);
+            });
+        }
+
+        function _sendBatchFile(index, file, projectId, folderId, versionNumber, versionNote,
+                               duplicateAction, newFilename) {
+            var $status = $('#batchStatus' + index);
+            var $progressWrap = $('#batchProgressWrap' + index);
+            var $progressBar = $('#batchProgress' + index);
+
             var formData = new FormData();
             formData.append('file', file);
             formData.append('project_id', projectId);
             formData.append('folder_id', folderId);
-            formData.append('version_number', Array.isArray(versionNumbers) ? versionNumbers[index] : versionNumbers);
+            formData.append('version_number', versionNumber);
             formData.append('version_note', versionNote);
+
+            // F5-1: 同名文件处理参数
+            if (duplicateAction) {
+                formData.append('duplicate_action', duplicateAction);
+            }
+            if (newFilename) {
+                formData.append('new_filename', newFilename);
+            }
 
             // F4-1: 收集批量标签 ID
             var batchTagIds = [];

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from werkzeug.utils import secure_filename
 
-from models import db, File, Folder, Project, FileTag, Tag
+from models import db, File, FileVersion, Folder, Project, FileTag, Tag
 
 
 def generate_file_number():
@@ -71,8 +71,41 @@ def get_files_by_folder(folder_id):
     return result
 
 
+def _archive_existing_file(original_filename, project_id, uploader_id):
+    """F5-1: 将同名同项目当前版本归档到 file_versions 表。
+
+    对每个 original_filename + project_id 匹配且 is_current=True 的文件：
+    1. 创建 FileVersion 记录（保留版本号、备注、路径、大小）
+    2. 将 is_current 标记为 False
+
+    注意：此函数不执行 commit，由外层 save_uploaded_file 统一提交。
+    """
+    old_files = (
+        File.query
+        .filter_by(
+            original_filename=original_filename,
+            project_id=project_id,
+            is_current=True,
+        )
+        .all()
+    )
+
+    for old in old_files:
+        version = FileVersion(
+            file_id=old.id,
+            version_number=old.version_number,
+            version_note=old.version_note,
+            file_path=old.file_path,
+            file_size=old.file_size,
+            uploaded_by=uploader_id,
+        )
+        db.session.add(version)
+        old.is_current = False
+
+
 def save_uploaded_file(file_storage, project_id, folder_id, uploader_id,
-                       version_number='I', version_note=None, tag_ids=None):
+                       version_number='I', version_note=None, tag_ids=None,
+                       duplicate_action=None, new_filename=None):
     """保存上传文件到磁盘并创建 DB 记录
 
     磁盘路径：uploads/<YYYY>/<MM>/<project_model>_<project_name>/<uuid8>_<safe_name>
@@ -137,6 +170,15 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id,
     disk_name = f'{uuid_prefix}_{safe_name}'
 
     disk_path = os.path.join(date_path, disk_name)
+
+    # ── F5-1: 同名文件处理（须在磁盘保存前执行）──
+    if duplicate_action == 'override':
+        version_number = next_version_number(original_name, project_id)
+        _archive_existing_file(original_name, project_id, uploader_id)
+
+    if duplicate_action == 'save_as_new' and new_filename:
+        original_name = new_filename
+
     file_storage.save(disk_path)
 
     # ── 相对路径（相对于 UPLOAD_FOLDER） ──
@@ -147,19 +189,6 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id,
 
     # ── 文件类型分类 ──
     file_type = _classify_file_type(ext, mime=file_storage.mimetype)
-
-    # ── 标记同名同项目旧版本为非当前 ──
-    old_files = (
-        File.query
-        .filter_by(
-            original_filename=original_name,
-            project_id=project_id,
-            is_current=True,
-        )
-        .all()
-    )
-    for old in old_files:
-        old.is_current = False
 
     # ── 生成文件编号 ──
     file_number = generate_file_number()
@@ -205,7 +234,7 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id,
             'file_number': file_record.file_number,
             'file_type': file_record.file_type,
             'file_size': file_record.file_size,
-            'version_number': 'I',
+            'version_number': version_number,
             'is_shortcut': False,
             'uploader_name': file_record.uploader.display_name if file_record.uploader else '',
             'uploaded_at': file_record.created_at.strftime('%Y-%m-%d %H:%M'),
