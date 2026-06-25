@@ -80,9 +80,11 @@ $(function () {
                 '<td><span class="badge badge-info">' + (f.project_model || '') + '</span></td>' +
                 '<td class="text-center" style="white-space:nowrap;">' +
                 '<span class="badge badge-secondary mr-1">' + (f.version_number || 'I') + '</span>' +
-                '<a href="/files/' + f.id + '/versions?from=' + folderId + '&file=' + f.id + '" class="badge badge-pill small" target="_blank" ' +
-                'style="border:1px solid #6c757d;color:#6c757d;font-size:0.7rem;text-decoration:none;" ' +
-                'title="历史版次">历史</a>' +
+                (f.has_versions
+                    ? '<button class="btn btn-sm btn-outline-secondary btn-history" ' +
+                      'data-file-id="' + f.id + '" title="查看历史版本" ' +
+                      'style="font-size:0.7rem;padding:1px 6px;">历史</button>'
+                    : '') +
                 '</td>' +
                 '<td><span class="badge badge-light badge-type">' + f.file_type + '</span></td>' +
                 '<td class="file-meta">' + LanDocHub.Utils.formatFileSize(f.file_size) + '</td>' +
@@ -200,5 +202,13 @@ $(function () {
     });
     $(window).on('beforeunload', function () {
         sessionStorage.setItem('lanhub_scroll_top', $('.main-content').scrollTop());
+    });
+
+    // F5-2: 历史版本按钮点击
+    $(document).on('click', '.btn-history', function () {
+        var fileId = $(this).data('file-id');
+        if (fileId) {
+            VersionHistoryModal.show(fileId);
+        }
     });
 });

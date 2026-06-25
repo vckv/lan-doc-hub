@@ -596,3 +596,69 @@ html, body {
     padding: 8px 12px;
     border-left: 3px solid #ffc107;
 }
+
+/* ── F5-2 历史版本面板 ── */
+.vh-timeline {
+    position: relative;
+    padding-left: 24px;
+}
+
+.vh-timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.vh-item {
+    position: relative;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #e2e8f0;
+}
+
+.vh-item-current {
+    background: #e8f5e9;
+    border-left-color: #28a745;
+}
+
+.vh-item-header {
+    margin-bottom: 4px;
+}
+
+.vh-version-badge {
+    display: inline-block;
+    min-width: 28px;
+    text-align: center;
+    background: #6c757d;
+    color: #fff;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.vh-item-body {
+    margin-bottom: 6px;
+}
+
+.vh-item-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.vh-item-actions .btn-xs {
+    font-size: 0.72rem;
+    padding: 1px 8px;
+    line-height: 1.4;
+}
+
+.btn-history {
+    cursor: pointer;
+}

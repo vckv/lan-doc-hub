@@ -50,9 +50,32 @@ def get_files_by_folder(folder_id):
         .order_by(File.created_at.desc())
         .all()
     )
+
+    # F5-2: 批量检测每个文件是否有历史版本
+    file_keys = list({(f.original_filename, f.project_id) for f, _ in files})
+    has_history_set = set()
+    if file_keys:
+        from sqlalchemy import and_, or_
+        conditions = [
+            and_(
+                File.original_filename == fn,
+                File.project_id == pid,
+                File.is_current == False,
+            )
+            for fn, pid in file_keys
+        ]
+        if conditions:
+            non_current = (
+                db.session.query(File.original_filename, File.project_id)
+                .filter(or_(*conditions))
+                .all()
+            )
+            has_history_set = {(fn, pid) for fn, pid in non_current}
+
     result = []
     for f, model in files:
         tags = [{'id': t.id, 'name': t.name, 'color': t.color} for t in f.tags]
+        has_versions = (f.original_filename, f.project_id) in has_history_set
         result.append({
             'id': f.id,
             'original_filename': f.original_filename,
@@ -66,6 +89,7 @@ def get_files_by_folder(folder_id):
             'shortcut_target_id': f.shortcut_target_id,
             'uploader_name': f.uploader.display_name if f.uploader else '',
             'uploaded_at': f.created_at.strftime('%Y-%m-%d %H:%M'),
+            'has_versions': has_versions,  # F5-2
             'tags': tags,
         })
     return result
