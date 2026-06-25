@@ -662,3 +662,44 @@ html, body {
 .btn-history {
     cursor: pointer;
 }
+
+/* ── F6-1 文件列表分页 ── */
+.file-pagination {
+    border-top: 1px solid #dee2e6;
+    padding-top: 12px;
+}
+
+.file-pagination .page-link {
+    cursor: pointer;
+}
+
+/* ── F6-1 文件类型图标 ── */
+.file-type-icon {
+    font-size: 1.3rem;
+    text-align: center;
+    width: 40px;
+}
+
+.col-type-icon {
+    width: 50px;
+}
+
+.col-operations {
+    width: 80px;
+}
+
+/* ── F6-1 操作列按钮 ── */
+.file-operations {
+    white-space: nowrap;
+}
+
+.file-operations .btn-xs {
+    font-size: 0.72rem;
+    padding: 1px 6px;
+    line-height: 1.4;
+    margin-right: 3px;
+}
+
+.file-operations .btn-xs:last-child {
+    margin-right: 0;
+}
