@@ -212,3 +212,137 @@ class TestFileListPagination:
         current = [f for f in data['files'] if f['version_number'] == 'II']
         assert len(current) == 1
         assert current[0]['has_versions'] is True
+
+
+class TestFileListSorting:
+
+    def test_default_sort_is_created_at_asc(self, app):
+        """默认排序为创建时间升序（最早上传的文件在前）"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        import time
+        _upload_file(client, b'1', 'a.pdf', proj_id, folder_id)
+        time.sleep(1.1)
+        _upload_file(client, b'2', 'b.pdf', proj_id, folder_id)
+        time.sleep(1.1)
+        _upload_file(client, b'3', 'c.pdf', proj_id, folder_id)
+
+        resp = client.get(f'/api/files?folder_id={folder_id}')
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert len(data['files']) == 3
+        assert data['files'][0]['original_filename'] == 'a.pdf'
+        assert data['files'][2]['original_filename'] == 'c.pdf'
+        assert data['sort_by'] == 'created_at'
+        assert data['sort_order'] == 'asc'
+
+    def test_sort_by_filename_desc(self, app):
+        """按文件名倒序排列"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'x', 'a.pdf', proj_id, folder_id)
+        _upload_file(client, b'x', 'b.pdf', proj_id, folder_id)
+        _upload_file(client, b'x', 'c.pdf', proj_id, folder_id)
+
+        resp = client.get(
+            f'/api/files?folder_id={folder_id}&sort_by=original_filename&sort_order=desc'
+        )
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert len(data['files']) == 3
+        assert data['files'][0]['original_filename'] == 'c.pdf'
+        assert data['files'][2]['original_filename'] == 'a.pdf'
+
+    def test_sort_by_file_size_asc(self, app):
+        """按文件大小升序排列"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'AAA', 'large.txt', proj_id, folder_id)
+        _upload_file(client, b'A', 'small.txt', proj_id, folder_id)
+        _upload_file(client, b'AA', 'medium.txt', proj_id, folder_id)
+
+        resp = client.get(
+            f'/api/files?folder_id={folder_id}&sort_by=file_size&sort_order=asc'
+        )
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert len(data['files']) == 3
+        assert data['files'][0]['file_size'] <= data['files'][1]['file_size']
+        assert data['files'][1]['file_size'] <= data['files'][2]['file_size']
+
+    def test_sort_by_model_asc(self, app):
+        """按型号升序排列"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app, project_model='M002')
+
+        with app.app_context():
+            admin = User.query.filter_by(username='admin').first()
+            proj2 = Project(model='M001', name='测试二号')
+            _db.session.add(proj2)
+            _db.session.flush()
+            folder2 = Folder(
+                name='M001_测试二号',
+                is_project_root=True,
+                project_id=proj2.id,
+                parent_id=None,
+                created_by=admin.id if admin else 1,
+            )
+            _db.session.add(folder2)
+            _db.session.commit()
+            proj2_id = proj2.id
+            folder2_id = folder2.id
+
+        _upload_file(client, b'y', 'b.pdf', proj2_id, folder2_id)
+        _upload_file(client, b'x', 'a.pdf', proj_id, folder_id)
+
+        resp = client.get(
+            f'/api/files?folder_id={folder_id}&sort_by=model&sort_order=asc'
+        )
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert len(data['files']) == 1
+        assert data['files'][0]['project_model'] == 'M002'
+
+    def test_invalid_sort_by_falls_back_to_default(self, app):
+        """非法的 sort_by 值回退到默认排序"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'x', 'a.pdf', proj_id, folder_id)
+
+        resp = client.get(
+            f'/api/files?folder_id={folder_id}&sort_by=hacked_column&sort_order=desc'
+        )
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['sort_by'] == 'hacked_column'
+        assert data['sort_order'] == 'desc'
+        assert len(data['files']) == 1
+
+    def test_sort_persists_with_pagination(self, app):
+        """排序参数与分页兼容——翻页后排序方向不变"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        for i in range(5):
+            _upload_file(client, b'x', f'file_{i}.pdf', proj_id, folder_id)
+
+        resp = client.get(
+            f'/api/files?folder_id={folder_id}&page=1&per_page=3'
+            '&sort_by=original_filename&sort_order=desc'
+        )
+        data = json.loads(resp.data)
+        assert data['total'] == 5
+        assert data['pages'] == 2
+        assert data['files'][0]['original_filename'].startswith('file_4')
+
+        resp = client.get(
+            f'/api/files?folder_id={folder_id}&page=2&per_page=3'
+            '&sort_by=original_filename&sort_order=desc'
+        )
+        data = json.loads(resp.data)
+        assert len(data['files']) == 2
+        assert data['files'][1]['original_filename'] == 'file_0.pdf'
