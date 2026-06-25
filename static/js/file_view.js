@@ -21,15 +21,16 @@ $(function () {
         _highlightFileId = data.highlightFileId || null;
         // 记住文件夹位置，刷新页面后恢复
         sessionStorage.setItem('lanhub_active_folder', data.folderId);
-        loadFiles(data.folderId, data.folderName);
+        loadFiles(data.folderId, data.folderName, data.page || 1);
         loadBreadcrumb(data.folderId, data.folderName);
     });
 
-    function loadFiles(folderId, folderName) {
+    function loadFiles(folderId, folderName, page) {
+        page = page || 1;
         $.ajax({
             url: '/api/files',
             method: 'GET',
-            data: { folder_id: folderId },
+            data: { folder_id: folderId, page: page, per_page: 20 },
             dataType: 'json',
         })
         .done(function (resp) {
@@ -37,15 +38,32 @@ $(function () {
                 LanDocHub.Utils.showInlineError($container, '加载失败');
                 return;
             }
-            renderFileList(resp.files || [], folderId);
+            renderFileList(resp.files || [], folderId, resp.page || 1, resp.pages || 1, resp.total || 0);
         })
         .fail(function () {
             LanDocHub.Utils.showInlineError($container, '加载失败，请刷新页面后重试');
         });
     }
 
-    function renderFileList(files, folderId) {
+    var FILE_TYPE_ICONS = {
+        'PDF':        '\uD83D\uDCD5',
+        'Word':       '\uD83D\uDCDD',
+        'Excel':      '\uD83D\uDCCA',
+        'PowerPoint': '\uD83D\uDCCA',
+        'Image':      '\uD83D\uDDBC\uFE0F',
+        'TXT':        '\uD83D\uDCC4',
+        'CSV':        '\uD83D\uDCCA',
+        'Video':      '\uD83C\uDFAC',
+        'Audio':      '\uD83C\uDFB5',
+        'Archive':    '\uD83D\uDCE6',
+        'CAD':        '\uD83D\uDCD0',
+    };
+    var FILE_TYPE_ICON_DEFAULT = '\uD83D\uDCCE';
+
+    function renderFileList(files, folderId, page, pages, total) {
         $container.data('currentFolderId', folderId);
+        $container.data('currentPage', page);
+        $container.data('totalPages', pages);
 
         if (files.length === 0) {
             $container.html([
@@ -59,11 +77,12 @@ $(function () {
         }
 
         var rows = $.map(files, function (f) {
+            var typeIcon = FILE_TYPE_ICONS[f.file_type] || FILE_TYPE_ICON_DEFAULT;
             var shortcut = f.is_shortcut ? ' ' + ICONS.LINK : '';
-            // F4-1: 标签 Badges
-            var tagBadges = '';
+
+            // 标签 Badges（独立列）
+            var tagBadges = '<span class="file-tags">';
             if (f.tags && f.tags.length > 0) {
-                tagBadges = '<span class="file-tags">';
                 $.each(f.tags, function (_ti, tag) {
                     var color = LanDocHub.Utils.escapeHtml(tag.color || '#3b82f6');
                     var name = LanDocHub.Utils.escapeHtml(tag.name || '');
@@ -72,12 +91,21 @@ $(function () {
                         '<span class="tag-dot" style="background:' + color + ';"></span>' +
                         name + '</span>';
                 });
-                tagBadges += '</span>';
             }
+            tagBadges += '</span>';
+
+            // 操作列
+            var operations =
+                '<button class="btn btn-outline-secondary btn-xs btn-preview-file" ' +
+                'data-file-id="' + f.id + '" title="预览文件">' + ICONS.SEARCH + '</button>' +
+                '<button class="btn btn-outline-primary btn-xs btn-download-file" ' +
+                'data-file-id="' + f.id + '" title="下载文件">' + ICONS.UPLOAD + '</button>';
+
             return '<tr data-file-id="' + f.id + '">' +
-                '<td class="file-name">' + f.original_filename + shortcut + tagBadges + '</td>' +
+                '<td class="file-type-icon" title="' + LanDocHub.Utils.escapeHtml(f.file_type) + '">' + typeIcon + '</td>' +
                 '<td><span class="file-number">' + f.file_number + '</span></td>' +
-                '<td><span class="badge badge-info">' + (f.project_model || '') + '</span></td>' +
+                '<td class="file-name">' + shortcut + f.original_filename + '</td>' +
+                '<td class="file-meta">' + LanDocHub.Utils.formatFileSize(f.file_size) + '</td>' +
                 '<td class="text-center" style="white-space:nowrap;">' +
                 '<span class="badge badge-secondary mr-1">' + (f.version_number || 'I') + '</span>' +
                 (f.has_versions
@@ -85,23 +113,31 @@ $(function () {
                       'data-file-id="' + f.id + '" title="查看历史版本" ' +
                       'style="font-size:0.7rem;padding:1px 6px;">历史</button>'
                     : '') +
+                (f.version_note ? '<div class="small text-muted">' + LanDocHub.Utils.escapeHtml(f.version_note) + '</div>' : '') +
                 '</td>' +
-                '<td><span class="badge badge-light badge-type">' + f.file_type + '</span></td>' +
-                '<td class="file-meta">' + LanDocHub.Utils.formatFileSize(f.file_size) + '</td>' +
+                '<td><span class="badge badge-info">' + (f.project_model || '') + '</span></td>' +
+                '<td>' + tagBadges + '</td>' +
                 '<td class="file-meta">' + (f.uploader_name || '') + '</td>' +
                 '<td class="file-meta">' + f.uploaded_at + '</td>' +
+                '<td class="file-operations">' + operations + '</td>' +
                 '</tr>';
         });
 
-        $container.html([
+        var tableHtml = [
             '<div class="file-table"><table class="table table-hover mb-0">',
             '<thead><tr>',
-            '<th>文件名称</th><th>编号</th><th>型号</th><th>版本</th><th>类型</th><th>大小</th><th>上传者</th><th>时间</th>',
+            '<th class="col-type-icon">类型</th>',
+            '<th>编号</th><th>文件名</th><th>大小</th><th>版本</th><th>型号</th>',
+            '<th>标签</th><th>上传者</th><th>时间</th><th class="col-operations">操作</th>',
             '</tr></thead><tbody>',
             rows.join(''),
-            '</tbody></table></div>'
-        ].join(''));
+            '</tbody></table></div>',
+            renderPagination(page, pages, total, folderId),
+        ].join('');
 
+        $container.html(tableHtml);
+
+        // 恢复滚动 + 高亮
         if (_highlightFileId) {
             var $row = $container.find('tr[data-file-id="' + _highlightFileId + '"]');
             if ($row.length) {
@@ -116,6 +152,41 @@ $(function () {
                 });
             }
         }
+    }
+
+    function renderPagination(page, pages, total, folderId) {
+        if (pages <= 1) return '';
+
+        var html = '<nav class="file-pagination mt-3"><ul class="pagination pagination-sm justify-content-center flex-wrap mb-0">';
+
+        // 上一页
+        html += '<li class="page-item' + (page <= 1 ? ' disabled' : '') + '">';
+        html += '<a class="page-link" href="#" data-page="' + (page - 1) + '">&laquo;</a></li>';
+
+        // 页码
+        var start = Math.max(1, page - 2);
+        var end = Math.min(pages, page + 2);
+        if (start > 1) {
+            html += '<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>';
+            if (start > 2) html += '<li class="page-item disabled"><span class="page-link">&hellip;</span></li>';
+        }
+        for (var p = start; p <= end; p++) {
+            html += '<li class="page-item' + (p === page ? ' active' : '') + '">';
+            html += '<a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
+        }
+        if (end < pages) {
+            if (end < pages - 1) html += '<li class="page-item disabled"><span class="page-link">&hellip;</span></li>';
+            html += '<li class="page-item"><a class="page-link" href="#" data-page="' + pages + '">' + pages + '</a></li>';
+        }
+
+        // 下一页
+        html += '<li class="page-item' + (page >= pages ? ' disabled' : '') + '">';
+        html += '<a class="page-link" href="#" data-page="' + (page + 1) + '">&raquo;</a></li>';
+
+        html += '<li class="page-item disabled ml-2"><span class="page-link border-0">共 ' + total + ' 个文件</span></li>';
+        html += '</ul></nav>';
+
+        return html;
     }
 
     // ── 面包屑导航 ──
@@ -210,5 +281,26 @@ $(function () {
         if (fileId) {
             VersionHistoryModal.show(fileId);
         }
+    });
+
+    // F6-1: 分页点击
+    $(document).on('click', '.file-pagination .page-link', function (e) {
+        e.preventDefault();
+        var p = parseInt($(this).data('page'));
+        if (isNaN(p)) return;
+        var folderId = $container.data('currentFolderId');
+        if (folderId) {
+            loadFiles(folderId, '', p);
+        }
+    });
+
+    // F6-1: 操作列 — 预览按钮（占位，路由由 F6-2 实现）
+    $(document).on('click', '.btn-preview-file', function () {
+        alert('在线预览功能即将开放（F6-2 阶段）');
+    });
+
+    // F6-1: 操作列 — 下载按钮（占位，路由由 F8-1 实现）
+    $(document).on('click', '.btn-download-file', function () {
+        alert('文件下载功能即将开放（F8-1 阶段）');
     });
 });
