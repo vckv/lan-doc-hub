@@ -60,8 +60,22 @@ $(function () {
 
         var rows = $.map(files, function (f) {
             var shortcut = f.is_shortcut ? ' ' + ICONS.LINK : '';
+            // F4-1: 标签 Badges
+            var tagBadges = '';
+            if (f.tags && f.tags.length > 0) {
+                tagBadges = '<span class="file-tags">';
+                $.each(f.tags, function (_ti, tag) {
+                    var color = LanDocHub.Utils.escapeHtml(tag.color || '#3b82f6');
+                    var name = LanDocHub.Utils.escapeHtml(tag.name || '');
+                    tagBadges +=
+                        '<span class="tag-badge" style="background:' + color + '20;color:' + color + ';border:1px solid ' + color + '40;">' +
+                        '<span class="tag-dot" style="background:' + color + ';"></span>' +
+                        name + '</span>';
+                });
+                tagBadges += '</span>';
+            }
             return '<tr data-file-id="' + f.id + '">' +
-                '<td class="file-name">' + f.original_filename + shortcut + '</td>' +
+                '<td class="file-name">' + f.original_filename + shortcut + tagBadges + '</td>' +
                 '<td><span class="file-number">' + f.file_number + '</span></td>' +
                 '<td><span class="badge badge-info">' + (f.project_model || '') + '</span></td>' +
                 '<td class="text-center" style="white-space:nowrap;">' +

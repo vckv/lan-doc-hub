@@ -261,6 +261,12 @@ $(function () {
             'placeholder="修改说明，最多 200 字" maxlength="200">' +
             '</div>' +
             '</div>' +
+            '<div class="form-group">' +
+            '<label>标签 <small class="text-muted">(可选，多选)</small></label>' +
+            '<div class="tag-selector" id="uploadTagSelector">' +
+            '<span class="text-muted small">加载中...</span>' +
+            '</div>' +
+            '</div>' +
             '<div class="alert alert-warning py-2 mb-0 mt-2 small" id="alertProjectMismatch" ' +
             'style="display:none;">' +
             '⚠ 当前文件夹不属于所选项目，提交后将触发跨项目拦截。' +
@@ -278,6 +284,42 @@ $(function () {
 
         $('body').append(html);
         var $modal = $('#uploadInfoModal');
+
+        // F4-1: 加载标签选择器
+        (function loadTagSelector() {
+            var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+            $.ajax({
+                url: '/api/tags',
+                method: 'GET',
+                headers: { 'X-CSRF-Token': csrfToken },
+                dataType: 'json',
+            }).done(function (resp) {
+                var $sel = $('#uploadTagSelector').empty();
+                if (!resp.success || !resp.tags || resp.tags.length === 0) {
+                    $sel.html('<span class="text-muted small">暂无标签</span>');
+                    return;
+                }
+                $.each(resp.tags, function (_i, tag) {
+                    $sel.append(
+                        '<label class="tag-check-label">' +
+                        '<input type="checkbox" value="' + tag.id + '">' +
+                        '<span class="tag-dot" style="background:' + LanDocHub.Utils.escapeHtml(tag.color) + ';"></span>' +
+                        LanDocHub.Utils.escapeHtml(tag.name) +
+                        '</label>'
+                    );
+                });
+            });
+        })();
+
+        // 标签多选点击切换
+        $(document).off('click', '#uploadTagSelector .tag-check-label').on('click', '#uploadTagSelector .tag-check-label', function (e) {
+            e.preventDefault();
+            var $label = $(this);
+            var $cb = $label.find('input[type="checkbox"]');
+            var checked = !$cb.prop('checked');
+            $cb.prop('checked', checked);
+            $label.toggleClass('selected', checked);
+        });
 
         // 加载项目下拉
         loadProjectOptions(function (selectedId) {
@@ -419,6 +461,15 @@ $(function () {
         formData.append('folder_id', folderId);
         formData.append('version_number', $('#inputVersionNumber').val() || 'I');
         formData.append('version_note', $('#inputVersionNote').val() || '');
+
+        // F4-1: 收集选中的标签 ID
+        var tagIds = [];
+        $('#uploadTagSelector input[type="checkbox"]:checked').each(function () {
+            tagIds.push($(this).val());
+        });
+        if (tagIds.length > 0) {
+            formData.append('tag_ids', tagIds.join(','));
+        }
 
         var $statusEl = $('<div class="alert alert-info small py-1 mt-2">上传中...</div>');
         $('#fileListContainer').prepend($statusEl);
@@ -891,6 +942,53 @@ $(function () {
 
         $list.html(rowsHtml);
 
+        // F4-1: 批量上传标签选择（所有文件共用）
+        var tagSelectorHtml =
+            '<div class="form-group mt-3" id="batchTagSelectorGroup">' +
+            '<label>标签 <small class="text-muted">(可选，多选，所有文件共用)</small></label>' +
+            '<div class="tag-selector" id="batchTagSelector">' +
+            '<span class="text-muted small">加载中...</span>' +
+            '</div>' +
+            '</div>';
+
+        $('#inputBatchVersionNote').closest('.form-group').after(tagSelectorHtml);
+
+        // 加载标签
+        (function loadBatchTagSelector() {
+            var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+            $.ajax({
+                url: '/api/tags',
+                method: 'GET',
+                headers: { 'X-CSRF-Token': csrfToken },
+                dataType: 'json',
+            }).done(function (resp) {
+                var $sel = $('#batchTagSelector').empty();
+                if (!resp.success || !resp.tags || resp.tags.length === 0) {
+                    $sel.html('<span class="text-muted small">暂无标签</span>');
+                    return;
+                }
+                $.each(resp.tags, function (_i, tag) {
+                    $sel.append(
+                        '<label class="tag-check-label">' +
+                        '<input type="checkbox" value="' + tag.id + '">' +
+                        '<span class="tag-dot" style="background:' + LanDocHub.Utils.escapeHtml(tag.color) + ';"></span>' +
+                        LanDocHub.Utils.escapeHtml(tag.name) +
+                        '</label>'
+                    );
+                });
+            });
+        })();
+
+        // 批量标签多选点击事件
+        $(document).off('click', '#batchTagSelector .tag-check-label').on('click', '#batchTagSelector .tag-check-label', function (e) {
+            e.preventDefault();
+            var $label = $(this);
+            var $cb = $label.find('input[type="checkbox"]');
+            var checked = !$cb.prop('checked');
+            $cb.prop('checked', checked);
+            $label.toggleClass('selected', checked);
+        });
+
         // 调整弹窗标题和宽度
         $('#batchUploadModal .modal-title').text(showRelPath ? '\u{1F4C1} 文件夹上传' : '批量上传');
         $('#batchUploadModal .modal-dialog').css('max-width', showRelPath ? '720px' : '620px');
@@ -998,6 +1096,15 @@ $(function () {
             formData.append('folder_id', folderId);
             formData.append('version_number', Array.isArray(versionNumbers) ? versionNumbers[index] : versionNumbers);
             formData.append('version_note', versionNote);
+
+            // F4-1: 收集批量标签 ID
+            var batchTagIds = [];
+            $('#batchTagSelector input[type="checkbox"]:checked').each(function () {
+                batchTagIds.push($(this).val());
+            });
+            if (batchTagIds.length > 0) {
+                formData.append('tag_ids', batchTagIds.join(','));
+            }
 
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/api/files/upload', true);

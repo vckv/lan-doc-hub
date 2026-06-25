@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from werkzeug.utils import secure_filename
 
-from models import db, File, Folder, Project
+from models import db, File, Folder, Project, FileTag, Tag
 
 
 def generate_file_number():
@@ -35,7 +35,7 @@ def generate_file_number():
 
 
 def get_files_by_folder(folder_id):
-    """获取某文件夹下的文件列表（含快捷方式标注）
+    """获取某文件夹下的文件列表（含快捷方式标注、标签信息）
 
     Args:
         folder_id: 文件夹 ID
@@ -52,6 +52,7 @@ def get_files_by_folder(folder_id):
     )
     result = []
     for f, model in files:
+        tags = [{'id': t.id, 'name': t.name, 'color': t.color} for t in f.tags]
         result.append({
             'id': f.id,
             'original_filename': f.original_filename,
@@ -65,12 +66,13 @@ def get_files_by_folder(folder_id):
             'shortcut_target_id': f.shortcut_target_id,
             'uploader_name': f.uploader.display_name if f.uploader else '',
             'uploaded_at': f.created_at.strftime('%Y-%m-%d %H:%M'),
+            'tags': tags,
         })
     return result
 
 
 def save_uploaded_file(file_storage, project_id, folder_id, uploader_id,
-                       version_number='I', version_note=None):
+                       version_number='I', version_note=None, tag_ids=None):
     """保存上传文件到磁盘并创建 DB 记录
 
     磁盘路径：uploads/<YYYY>/<MM>/<project_model>_<project_name>/<uuid8>_<safe_name>
@@ -185,6 +187,14 @@ def save_uploaded_file(file_storage, project_id, folder_id, uploader_id,
         storage_path=rel_path,
     )
     db.session.add(file_record)
+
+    # ── 绑定标签（仅绑定真实存在的 tag_id）──
+    if tag_ids:
+        existing_ids = {t.id for t in Tag.query.filter(Tag.id.in_(tag_ids)).all()}
+        for tid in tag_ids:
+            if tid in existing_ids:
+                db.session.add(FileTag(file_id=file_record.id, tag_id=tid))
+
     db.session.commit()
 
     return {

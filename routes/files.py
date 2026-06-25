@@ -57,6 +57,15 @@ def api_upload_file():
     version_number = request.form.get('version_number', 'I').strip() or 'I'
     version_note = request.form.get('version_note', '').strip() or None
 
+    # ── F4-1: 标签 ID 列表（逗号分隔）──
+    tag_ids_raw = request.form.get('tag_ids', '')
+    tag_ids = []
+    if tag_ids_raw:
+        try:
+            tag_ids = [int(x.strip()) for x in tag_ids_raw.split(',') if x.strip()]
+        except (ValueError, TypeError):
+            pass
+
     if not project_id or not folder_id:
         return jsonify({
             'success': False,
@@ -73,6 +82,7 @@ def api_upload_file():
         uploader_id=int(session['user_id']),
         version_number=version_number,
         version_note=version_note,
+        tag_ids=tag_ids,
     )
 
     if not result['success']:

@@ -73,6 +73,9 @@
             <button class="btn btn-outline-secondary btn-sm" id="btnCreate">
                 📁 新增项目
             </button>
+            <button class="btn btn-outline-secondary btn-sm ml-1" id="btnTagManage">
+                🏷️ 标签管理
+            </button>
         </div>
         {% endif %}
     </aside>
@@ -168,6 +171,9 @@
 <script src="{{ url_for('static', filename='js/upload_handler.js') }}"></script>
 <!-- 文件视图 JS（F3-1） -->
 <script src="{{ url_for('static', filename='js/file_view.js') }}"></script>
+
+<!-- 标签管理 JS（F4-1） -->
+<script src="{{ url_for('static', filename='js/tag_management.js') }}"></script>
 
 {% block scripts %}{% endblock %}
 </body>

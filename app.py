@@ -186,6 +186,9 @@ def create_app(config_overrides=None):
     from routes.projects import projects_bp
     app.register_blueprint(projects_bp)
 
+    from routes.tags import tags_bp
+    app.register_blueprint(tags_bp)
+
     # 上传限制已统一在 config.py 中配置，Flask 全局限制为 None，
     # 具体限制由 services/file_service.py 按文件类型校验
 

@@ -482,3 +482,109 @@ html, body {
     border: 1px solid #dee2e6;
     border-radius: 10px;
 }
+
+/* ═══════════════════════════════════════
+   F4-1 标签系统样式
+   ═══════════════════════════════════════ */
+
+/* 文件列表行中的标签容器 */
+.file-tags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+/* 标签徽章 */
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.tag-badge .tag-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+/* ── 标签管理弹窗 ── */
+.tag-mgmt-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.tag-mgmt-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.tag-mgmt-item:last-child {
+    border-bottom: none;
+}
+
+.tag-mgmt-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tag-mgmt-actions .btn {
+    font-size: 0.72rem;
+    padding: 0.12rem 0.5rem;
+    margin-left: 3px;
+}
+
+/* ── 上传弹窗标签多选 ── */
+.tag-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 0;
+}
+
+.tag-selector .tag-check-label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 3px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.tag-selector .tag-check-label:hover {
+    border-color: #007bff;
+}
+
+.tag-selector .tag-check-label.selected {
+    background: #007bff;
+    color: #fff;
+    border-color: #007bff;
+}
+
+.tag-selector .tag-check-label input[type="checkbox"] {
+    display: none;
+}
+
+.tag-selector .tag-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
