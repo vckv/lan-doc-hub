@@ -137,8 +137,10 @@
       <div class="modal-body">
         <div class="batch-file-list" id="batchFileList"></div>
         <div class="form-group">
-          <label for="inputBatchProjectId">所属项目</label>
-          <select class="form-control" id="inputBatchProjectId"></select>
+          <label for="inputBatchProjectSearch">所属项目 <small class="text-muted">(输入型号或名称搜索)</small></label>
+          <input type="text" class="form-control" id="inputBatchProjectSearch"
+            placeholder="搜索已有项目..." autocomplete="off">
+          <input type="hidden" id="inputBatchProjectId">
         </div>
         <div class="form-group">
           <label for="inputBatchVersionNote">版本备注（所有文件共用）</label>
@@ -157,6 +159,10 @@
 <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
 <!-- Bootstrap 4 JS -->
 <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+
+<!-- 自定义 Autocomplete 组件（F4-2） -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/autocomplete.css') }}">
+<script src="{{ url_for('static', filename='js/autocomplete.js') }}"></script>
 
 <!-- 应用配置（全局常量、图标） -->
 <script src="{{ url_for('static', filename='js/app_config.js') }}"></script>

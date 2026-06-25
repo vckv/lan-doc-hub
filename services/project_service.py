@@ -66,3 +66,42 @@ def create_project_with_root(model: str, name: str, created_by: int):
                    'is_project_root': True, 'project_id': folder.project_id},
         'errors': {},
     }
+
+
+def suggest_projects(query: str, limit: int = 10):
+    """按项目型号或名称模糊匹配
+
+    Args:
+        query: 用户输入的关键字（型号或名称，大小写不敏感）
+        limit: 最多返回条数，默认 10
+
+    Returns:
+        list[dict]: [{id, model, name, display}, ...]
+        display 格式为 "model - name"
+    """
+    q = (query or '').strip()
+    if not q:
+        return []
+
+    pattern = f'%{q}%'
+    results = (
+        Project.query
+        .filter(
+            db.or_(
+                Project.model.ilike(pattern),
+                Project.name.ilike(pattern),
+            )
+        )
+        .order_by(Project.model)
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            'id': p.id,
+            'model': p.model,
+            'name': p.name,
+            'display': f'{p.model} - {p.name}',
+        }
+        for p in results
+    ]

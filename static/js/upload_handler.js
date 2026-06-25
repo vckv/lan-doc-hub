@@ -239,10 +239,10 @@ $(function () {
             '</div>' +
             '<div class="form-group">' +
             '<label>所属项目 ' +
-            '<small class="text-muted">(默认为当前文件夹所属项目)</small></label>' +
-            '<select class="form-control form-control-sm" id="inputProjectId">' +
-            '<option value="">加载中...</option>' +
-            '</select>' +
+            '<small class="text-muted">(输入型号或名称搜索)</small></label>' +
+            '<input type="text" class="form-control form-control-sm" id="inputProjectSearch" ' +
+            'placeholder="搜索已有项目..." autocomplete="off">' +
+            '<input type="hidden" id="inputProjectId">' +
             '</div>' +
             '<div class="form-row">' +
             '<div class="form-group col-md-4">' +
@@ -321,10 +321,8 @@ $(function () {
             $label.toggleClass('selected', checked);
         });
 
-        // 加载项目下拉
-        loadProjectOptions(function (selectedId) {
-            $('#inputProjectId').val(selectedId);
-        });
+        // F4-2: 初始化项目 autocomplete
+        initProjectAutocomplete();
 
         // 自动检索下一个版本号
         function fetchNextVersion() {
@@ -351,19 +349,15 @@ $(function () {
             });
         }
 
-        // 项目切换时重新检索版本号
-        $('#inputProjectId').on('change', function () {
-            checkProjectMatch(getCurrentFolderId(), parseInt($(this).val()));
-            fetchNextVersion();
-        });
+        // F4-2: 项目切换时版本号更新已由 autocomplete onSelect 处理，无需额外绑定 change 事件
 
         $('#btnConfirmUpload').on('click', function () {
             var projectId = parseInt($('#inputProjectId').val());
             if (!projectId) {
-                $('#inputProjectId').addClass('is-invalid');
+                $('#inputProjectSearch').addClass('is-invalid');
                 return;
             }
-            $('#inputProjectId').removeClass('is-invalid');
+            $('#inputProjectSearch').removeClass('is-invalid');
             $modal.modal('hide');
 
             var folderId = getCurrentFolderId();
@@ -387,50 +381,166 @@ $(function () {
 
         // 弹窗显示后再检索版本号（确保 DOM 完全就绪）
         $modal.on('shown.bs.modal', function () {
-            fetchNextVersion();
+            var pid = parseInt($('#inputProjectId').val());
+            if (pid) fetchNextVersion();
         });
 
         $modal.modal('show');
     }
 
-    function loadProjectOptions(callback) {
-        var $select = $('#inputProjectId');
-        $select.empty();
+    function initProjectAutocomplete() {
+        var $acInput = $('#inputProjectSearch');
+        var $hidden = $('#inputProjectId');
+        var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
 
-        // 从文件夹树提取项目选项（根节点）
-        var added = {};
+        // 获取当前文件夹默认项目
         var defaultProjectId = null;
+        var defaultDisplay = '';
         var activeNode = $('.tree-node.active');
-
-        $('.tree-node[data-is-root="true"]').each(function () {
-            var name = $(this).find('.tree-name').text();
-            var projectId = $(this).data('project-id');
-            if (added[projectId]) return;
-            added[projectId] = true;
-            $select.append('<option value="' + projectId + '">' + name + '</option>');
-        });
-
-        // 尝试匹配当前文件夹到项目
         if (activeNode.length) {
-            var currentId = activeNode.data('folder-id');
-            // 向上查根节点
             var $root = activeNode.closest('.folder-tree').find('.tree-node[data-is-root="true"]').first();
-            if ($root.length && added[$root.data('project-id')]) {
+            if ($root.length) {
                 defaultProjectId = $root.data('project-id');
-            } else if (added[activeNode.data('project-id')]) {
+                defaultDisplay = $root.find('.tree-name').text().trim();
+            } else if (activeNode.data('project-id')) {
                 defaultProjectId = activeNode.data('project-id');
+                var $node = $('.tree-node[data-project-id="' + defaultProjectId + '"][data-is-root="true"]').first();
+                if ($node.length) defaultDisplay = $node.find('.tree-name').text().trim();
             }
         }
-
         if (defaultProjectId) {
-            $select.val(defaultProjectId);
-        } else {
-            // 取第一个选项
-            var firstVal = $select.find('option').first().val();
-            if (firstVal) $select.val(firstVal);
+            $acInput.val(defaultDisplay);
+            $hidden.val(defaultProjectId);
         }
 
-        if (callback) callback(defaultProjectId || parseInt($select.val()));
+        // 初始化 autocomplete
+        $acInput.lanAutocomplete({
+            minLength: 1,
+            placeholder: '输入型号或名称搜索...',
+            createLabel: '创建新项目（需填写型号 + 名称）',
+            source: function (query, done) {
+                $.ajax({
+                    url: '/api/projects/suggest',
+                    method: 'GET',
+                    data: { q: query },
+                    headers: { 'X-CSRF-Token': csrfToken },
+                    dataType: 'json',
+                }).done(function (resp) {
+                    if (resp.success && resp.projects) {
+                        done(resp.projects);
+                    } else {
+                        done([]);
+                    }
+                }).fail(function () {
+                    done([]);
+                });
+            },
+            onSelect: function (item) {
+                $hidden.val(item.id);
+                $acInput.val(item.display);
+                checkProjectMatch(getCurrentFolderId(), item.id);
+                fetchNextVersion();
+            },
+            onCreateNew: function (query, onCreated) {
+                showCreateProjectInline(query, function (newProject) {
+                    onCreated(newProject);
+                    $hidden.val(newProject.id);
+                    $acInput.val(newProject.display);
+                    fetchNextVersion();
+                });
+            },
+        });
+
+        function fetchNextVersion() {
+            var projectId = parseInt($hidden.val());
+            if (!projectId) return;
+            $.ajax({
+                url: '/api/files/next-version',
+                method: 'GET',
+                data: { filename: file.name, project_id: projectId },
+                headers: { 'X-CSRF-Token': csrfToken },
+                dataType: 'json',
+            }).done(function (resp) {
+                if (resp.success && resp.version_number) {
+                    $('#inputVersionNumber').val(resp.version_number);
+                }
+            }).fail(function () {
+                // 静默失败，使用默认值
+            });
+        }
+    }
+
+    // 内联"创建新项目"弹窗
+    function showCreateProjectInline(defaultModel, callback) {
+        $('#createProjectModal').remove();
+        var html =
+            '<div class="modal fade" id="createProjectModal" tabindex="-1" role="dialog">' +
+            '<div class="modal-dialog modal-dialog-centered modal-sm" role="document">' +
+            '<div class="modal-content">' +
+            '<div class="modal-header bg-success text-white">' +
+            '<h6 class="modal-title">+ 创建新项目</h6>' +
+            '<button type="button" class="close text-white" data-dismiss="modal">&times;</button>' +
+            '</div>' +
+            '<div class="modal-body">' +
+            '<div class="form-group">' +
+            '<label class="small">项目型号 <span class="text-danger">*</span></label>' +
+            '<input type="text" class="form-control form-control-sm" id="inputNewModel" ' +
+            'placeholder="英文+数字，如 PRJ001" maxlength="' + LanDocHub.CONFIG.PROJECT_MODEL_MAX_LENGTH + '" ' +
+            'value="' + LanDocHub.Utils.escapeHtml(defaultModel || '') + '">' +
+            '</div>' +
+            '<div class="form-group">' +
+            '<label class="small">项目名称 <span class="text-danger">*</span></label>' +
+            '<input type="text" class="form-control form-control-sm" id="inputNewName" ' +
+            'placeholder="中文名称，如 某研发项目" maxlength="' + LanDocHub.CONFIG.PROJECT_NAME_MAX_LENGTH + '">' +
+            '</div>' +
+            '</div>' +
+            '<div class="modal-footer py-2">' +
+            '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">取消</button>' +
+            '<button type="button" class="btn btn-success btn-sm" id="btnConfirmCreateProject">创建</button>' +
+            '</div>' +
+            '</div></div></div>';
+
+        $('body').append(html);
+        var $modal = $('#createProjectModal');
+        var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
+
+        $modal.modal('show');
+        $modal.on('hidden.bs.modal', function () { $modal.remove(); });
+        $modal.on('shown.bs.modal', function () { $('#inputNewName').focus(); });
+
+        $('#btnConfirmCreateProject').on('click', function () {
+            var model = $('#inputNewModel').val().trim();
+            var name = $('#inputNewName').val().trim();
+            if (!model) { alert('请输入项目型号'); return; }
+            if (!name) { alert('请输入项目名称'); return; }
+
+            $.ajax({
+                url: '/api/projects',
+                method: 'POST',
+                contentType: 'application/json',
+                headers: { 'X-CSRF-Token': csrfToken },
+                data: JSON.stringify({ model: model, name: name }),
+            }).done(function (resp) {
+                if (resp.success) {
+                    $modal.modal('hide');
+                    callback({
+                        id: resp.project.id,
+                        display: resp.project.model + ' - ' + resp.project.name,
+                        model: resp.project.model,
+                        name: resp.project.name,
+                    });
+                    // 刷新文件夹树以显示新项目根文件夹
+                    if (typeof reloadFolderTree === 'function') {
+                        reloadFolderTree();
+                    }
+                } else {
+                    var msg = Object.values(resp.errors || {}).flat().join('; ');
+                    alert(msg || '创建失败');
+                }
+            }).fail(function () {
+                alert('创建失败，请重试');
+            });
+        });
     }
 
     function checkProjectMatch(folderId, projectId) {
@@ -994,36 +1104,59 @@ $(function () {
         $('#batchUploadModal .modal-dialog').css('max-width', showRelPath ? '720px' : '620px');
 
         // 恢复确认表单（autoUpload 可能已隐藏）
-        $('#inputBatchProjectId, #inputBatchVersionNote, #btnBatchConfirmUpload')
+        $('#inputBatchProjectSearch, #inputBatchProjectId, #inputBatchVersionNote, #btnBatchConfirmUpload')
             .closest('.form-group, .form-row, .mt-3').show();
 
-        // 加载项目列表
-        var $projectSelect = $('#inputBatchProjectId').empty();
-        $projectSelect.append('<option value="">-- 请选择项目 --</option>');
-        $('.tree-node[data-is-root="true"]').each(function () {
-            var $node = $(this);
-            var pid = $node.data('project-id');
-            var pname = $node.find('.tree-name').text().trim();
-            if (pid && pname) {
-                $projectSelect.append('<option value="' + pid + '">' + pname + '</option>');
-            }
-        });
+        // F4-2: 初始化批量上传项目 autocomplete
+        var $batchAcInput = $('#inputBatchProjectSearch');
+        var $batchHidden = $('#inputBatchProjectId');
+        var csrfToken = $('meta[name="csrf-token"]').attr('content') || '';
 
         // 默认选中当前文件夹所属项目
         var defaultProjectId = $('.tree-node[data-folder-id="' + folderId + '"]').data('project-id');
         if (defaultProjectId) {
-            $projectSelect.val(defaultProjectId);
+            var $node = $('.tree-node[data-project-id="' + defaultProjectId + '"][data-is-root="true"]').first();
+            var defaultDisplay = $node.find('.tree-name').text().trim();
+            $batchAcInput.val(defaultDisplay);
+            $batchHidden.val(defaultProjectId);
+            // 逐文件自动检索最新迭代版本号
+            fetchBatchNextVersions(defaultProjectId);
         }
 
-        // 逐文件自动检索最新迭代版本号
-        fetchBatchNextVersions(defaultProjectId);
-
-        // 项目切换时重新检索版本号
-        $projectSelect.off('change.batchVersion').on('change.batchVersion', function () {
-            var pid = $(this).val();
-            if (pid) {
-                fetchBatchNextVersions(parseInt(pid));
-            }
+        $batchAcInput.lanAutocomplete({
+            minLength: 1,
+            placeholder: '输入型号或名称搜索...',
+            createLabel: '创建新项目（需填写型号 + 名称）',
+            source: function (query, done) {
+                $.ajax({
+                    url: '/api/projects/suggest',
+                    method: 'GET',
+                    data: { q: query },
+                    headers: { 'X-CSRF-Token': csrfToken },
+                    dataType: 'json',
+                }).done(function (resp) {
+                    if (resp.success && resp.projects) {
+                        done(resp.projects);
+                    } else {
+                        done([]);
+                    }
+                }).fail(function () {
+                    done([]);
+                });
+            },
+            onSelect: function (item) {
+                $batchHidden.val(item.id);
+                $batchAcInput.val(item.display);
+                fetchBatchNextVersions(item.id);
+            },
+            onCreateNew: function (query, onCreated) {
+                showCreateProjectInline(query, function (newProject) {
+                    onCreated(newProject);
+                    $batchHidden.val(newProject.id);
+                    $batchAcInput.val(newProject.display);
+                    fetchBatchNextVersions(newProject.id);
+                });
+            },
         });
 
         // 重置按钮

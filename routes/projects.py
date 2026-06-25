@@ -1,8 +1,8 @@
-"""项目管理路由蓝图 —— 创建项目（同时创建根文件夹）"""
+"""项目管理路由蓝图 —— 创建项目（同时创建根文件夹）+ suggest 自动补全"""
 
 from flask import Blueprint, jsonify, request, session
 
-from services.project_service import create_project_with_root
+from services.project_service import create_project_with_root, suggest_projects
 from utils.decorators import api_login_required, api_admin_required
 
 projects_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
@@ -33,3 +33,19 @@ def api_create_project():
         'project': result['project'],
         'folder': result['folder'],
     }), 201
+
+
+@projects_bp.route('/suggest', methods=['GET'])
+@api_login_required
+def api_suggest_projects():
+    """GET /api/projects/suggest?q=xxx → 按型号/名称模糊搜索项目
+
+    Query params:
+        q: 搜索关键字（必填）
+    """
+    q = request.args.get('q', '').strip()
+    if not q:
+        return jsonify({'success': True, 'projects': []})
+
+    results = suggest_projects(q, limit=10)
+    return jsonify({'success': True, 'projects': results})
