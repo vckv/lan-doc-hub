@@ -34,20 +34,34 @@ def generate_file_number():
     return f'{prefix}{seq:03d}'
 
 
-def get_files_by_folder(folder_id):
-    """获取某文件夹下的文件列表（含快捷方式标注、标签信息）
+def get_files_by_folder(folder_id, page=1, per_page=20):
+    """获取某文件夹下的文件列表（含快捷方式标注、标签信息，分页支持）
 
     Args:
         folder_id: 文件夹 ID
+        page: 页码（从 1 开始，默认 1）
+        per_page: 每页条数（默认 20）
 
     Returns:
-        list[dict]
+        dict: {files, total, page, pages}  — 分页数据结构
     """
+    # 计算总数
+    total = (
+        db.session.query(File.id)
+        .filter(File.folder_id == folder_id, File.is_current == True)
+        .count()
+    )
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, pages))
+
+    offset = (page - 1) * per_page
     files = (
         db.session.query(File, Project.model)
         .join(Project, File.project_id == Project.id)
         .filter(File.folder_id == folder_id, File.is_current == True)
         .order_by(File.created_at.desc())
+        .limit(per_page)
+        .offset(offset)
         .all()
     )
 
@@ -92,7 +106,7 @@ def get_files_by_folder(folder_id):
             'has_versions': has_versions,  # F5-2
             'tags': tags,
         })
-    return result
+    return {'files': result, 'total': total, 'page': page, 'pages': pages}
 
 
 def _archive_existing_file(original_filename, project_id, uploader_id):
