@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from werkzeug.utils import secure_filename
 
-from models import db, File, FileVersion, Folder, Project, FileTag, Tag
+from models import db, File, FileVersion, Folder, Project, FileTag, Tag, User
 
 
 def generate_file_number():
@@ -34,16 +34,30 @@ def generate_file_number():
     return f'{prefix}{seq:03d}'
 
 
-def get_files_by_folder(folder_id, page=1, per_page=20):
-    """获取某文件夹下的文件列表（含快捷方式标注、标签信息，分页支持）
+# 排序白名单映射: 前端 sort_by 值 → SQLAlchemy 列对象
+_SORT_COLUMNS = {
+    'created_at': File.created_at,
+    'file_type': File.file_type,
+    'original_filename': File.original_filename,
+    'file_size': File.file_size,
+    'version_number': File.version_number,
+    'model': Project.model,
+    'uploader_name': User.display_name,
+}
+
+
+def get_files_by_folder(folder_id, page=1, per_page=20, sort_by='created_at', sort_order='asc'):
+    """获取某文件夹下的文件列表（含快捷方式标注、标签信息，分页+排序支持）
 
     Args:
         folder_id: 文件夹 ID
         page: 页码（从 1 开始，默认 1）
         per_page: 每页条数（默认 20）
+        sort_by: 排序字段（默认 created_at）
+        sort_order: 排序方向（asc/desc，默认 asc）
 
     Returns:
-        dict: {files, total, page, pages}  — 分页数据结构
+        dict: {files, total, page, pages, sort_by, sort_order}
     """
     # 计算总数
     total = (
@@ -54,16 +68,25 @@ def get_files_by_folder(folder_id, page=1, per_page=20):
     pages = max(1, (total + per_page - 1) // per_page)
     page = max(1, min(page, pages))
 
+    # 映射排序字段，非法值回退到默认
+    sort_column = _SORT_COLUMNS.get(sort_by, File.created_at)
+    sort_order_val = sort_order.lower() if sort_order.lower() in ('asc', 'desc') else 'asc'
+
     offset = (page - 1) * per_page
-    files = (
+
+    # 构建查询
+    query = (
         db.session.query(File, Project.model)
         .join(Project, File.project_id == Project.id)
-        .filter(File.folder_id == folder_id, File.is_current == True)
-        .order_by(File.created_at.desc())
-        .limit(per_page)
-        .offset(offset)
-        .all()
     )
+
+    # 按上传者排序时需要 JOIN User 表
+    if sort_by == 'uploader_name':
+        query = query.outerjoin(User, File.uploader_id == User.id)
+
+    query = query.filter(File.folder_id == folder_id, File.is_current == True)
+    query = query.order_by(sort_column.asc() if sort_order_val == 'asc' else sort_column.desc())
+    files = query.limit(per_page).offset(offset).all()
 
     # F5-2: 批量检测每个文件是否有历史版本
     file_keys = list({(f.original_filename, f.project_id) for f, _ in files})
@@ -106,7 +129,8 @@ def get_files_by_folder(folder_id, page=1, per_page=20):
             'has_versions': has_versions,  # F5-2
             'tags': tags,
         })
-    return {'files': result, 'total': total, 'page': page, 'pages': pages}
+    return {'files': result, 'total': total, 'page': page, 'pages': pages,
+            'sort_by': sort_by, 'sort_order': sort_order_val}
 
 
 def _archive_existing_file(original_filename, project_id, uploader_id):
