@@ -158,7 +158,7 @@ def api_upload_file():
 @files_bp.route('', methods=['GET'])
 @api_login_required
 def api_list_files():
-    """GET /api/files?folder_id=N&page=1&per_page=20 → 获取文件夹内文件列表（分页）"""
+    """GET /api/files?folder_id=N&page=1&per_page=20&sort_by=created_at&sort_order=asc"""
 
     folder_id = request.args.get('folder_id', type=int)
     if folder_id is None:
@@ -168,7 +168,11 @@ def api_list_files():
     per_page = request.args.get('per_page', 20, type=int)
     per_page = max(1, min(per_page, 100))  # 限制每页最大 100 条
 
-    data = get_files_by_folder(folder_id, page=page, per_page=per_page)
+    sort_by = request.args.get('sort_by', 'created_at')
+    sort_order = request.args.get('sort_order', 'asc')
+
+    data = get_files_by_folder(folder_id, page=page, per_page=per_page,
+                               sort_by=sort_by, sort_order=sort_order)
     return jsonify({'success': True, **data})
 
 
