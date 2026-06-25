@@ -27,10 +27,12 @@ $(function () {
 
     function loadFiles(folderId, folderName, page) {
         page = page || 1;
+        var sortBy = $container.data('sortBy') || 'created_at';
+        var sortOrder = $container.data('sortOrder') || 'asc';
         $.ajax({
             url: '/api/files',
             method: 'GET',
-            data: { folder_id: folderId, page: page, per_page: 20 },
+            data: { folder_id: folderId, page: page, per_page: 20, sort_by: sortBy, sort_order: sortOrder },
             dataType: 'json',
         })
         .done(function (resp) {
@@ -38,7 +40,11 @@ $(function () {
                 LanDocHub.Utils.showInlineError($container, '加载失败');
                 return;
             }
-            renderFileList(resp.files || [], folderId, resp.page || 1, resp.pages || 1, resp.total || 0);
+            // 后端可能回退排序参数，以 resp 为准更新本地状态
+            if (resp.sort_by) $container.data('sortBy', resp.sort_by);
+            if (resp.sort_order) $container.data('sortOrder', resp.sort_order);
+            renderFileList(resp.files || [], folderId, resp.page || 1, resp.pages || 1, resp.total || 0,
+                           resp.sort_by || 'created_at', resp.sort_order || 'asc');
         })
         .fail(function () {
             LanDocHub.Utils.showInlineError($container, '加载失败，请刷新页面后重试');
@@ -60,7 +66,7 @@ $(function () {
     };
     var FILE_TYPE_ICON_DEFAULT = '\uD83D\uDCCE';
 
-    function renderFileList(files, folderId, page, pages, total) {
+    function renderFileList(files, folderId, page, pages, total, sortBy, sortOrder) {
         $container.data('currentFolderId', folderId);
         $container.data('currentPage', page);
         $container.data('totalPages', pages);
@@ -142,6 +148,9 @@ $(function () {
 
         $container.html(tableHtml);
 
+        // 更新排序箭头状态
+        updateSortArrows(sortBy, sortOrder);
+
         // 恢复滚动 + 高亮
         if (_highlightFileId) {
             var $row = $container.find('tr[data-file-id="' + _highlightFileId + '"]');
@@ -157,6 +166,12 @@ $(function () {
                 });
             }
         }
+    }
+
+    function updateSortArrows(sortBy, sortOrder) {
+        $container.find('.sortable-header .sort-arrow').text('');
+        var $active = $container.find('.sortable-header[data-sort="' + sortBy + '"] .sort-arrow');
+        $active.text(sortOrder === 'asc' ? ' ▲' : ' ▼');
     }
 
     function renderPagination(page, pages, total, folderId) {
@@ -285,6 +300,29 @@ $(function () {
         var fileId = $(this).data('file-id');
         if (fileId) {
             VersionHistoryModal.show(fileId);
+        }
+    });
+
+    // F6-1: 排序表头点击
+    $(document).on('click', '.sortable-header', function () {
+        var sortBy = $(this).data('sort');
+        if (!sortBy) return;
+
+        var currentSortBy = $container.data('sortBy') || 'created_at';
+        var currentOrder = $container.data('sortOrder') || 'asc';
+
+        if (sortBy === currentSortBy) {
+            // 同列切换方向
+            $container.data('sortOrder', currentOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            // 不同列，默认升序
+            $container.data('sortBy', sortBy);
+            $container.data('sortOrder', 'asc');
+        }
+
+        var folderId = $container.data('currentFolderId');
+        if (folderId) {
+            loadFiles(folderId, '', 1);  // 排序时回到第 1 页
         }
     });
 

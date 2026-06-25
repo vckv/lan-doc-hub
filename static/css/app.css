@@ -703,3 +703,24 @@ html, body {
 .file-operations .btn-xs:last-child {
     margin-right: 0;
 }
+
+/* ── F6-1 排序表头 ── */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sortable-header:hover {
+    background-color: #f0f0f0;
+}
+
+.sortable-header .sort-arrow {
+    font-size: 0.65rem;
+    color: #adb5bd;
+}
+
+/* 操作列宽度更新：文字"预览""下载"比 emoji 宽 */
+.col-operations {
+    width: 100px;
+}
