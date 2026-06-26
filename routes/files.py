@@ -185,3 +185,63 @@ def api_file_versions(file_id):
     if result is None:
         return jsonify({'success': False, 'errors': {'file_id': ['文件不存在']}}), 404
     return jsonify({'success': True, **result})
+
+
+# ── F6-2 在线预览 ──
+
+
+@files_bp.route('/<int:file_id>/preview', methods=['GET'])
+@api_login_required
+def api_preview_file(file_id):
+    """GET /api/files/<id>/preview → 获取文件预览数据
+
+    根据文件类型返回不同结构：
+    - Image/PDF: {'type': 'stream', 'stream_url': '...'}
+    - TXT: {'type': 'text', 'content': '...'}
+    - CSV: {'type': 'csv', 'headers': [...], 'rows': [[...]]}
+    - Office: {'type': 'html', 'content': '<div>...</div>'}
+    """
+
+    from services.file_service import get_preview_data
+    data = get_preview_data(file_id)
+    if data.get('success'):
+        return jsonify(data)
+    return jsonify(data), 400
+
+
+@files_bp.route('/<int:file_id>/stream', methods=['GET'])
+@api_login_required
+def api_stream_file(file_id):
+    """GET /api/files/<id>/stream → 流式传输原始文件（图片/PDF 直接展示）"""
+
+    from flask import send_file
+
+    file_record = db.session.get(File, file_id)
+    if file_record is None:
+        return jsonify({'success': False, 'errors': {'file_id': ['文件不存在']}}), 404
+
+    disk_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.file_path)
+    if not os.path.isfile(disk_path):
+        return jsonify({'success': False, 'errors': {'file': ['磁盘文件丢失']}}), 404
+
+    ext = os.path.splitext(file_record.original_filename)[1].lower()
+    mime_map = {
+        '.pdf': 'application/pdf',
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.png': 'image/png', '.gif': 'image/gif',
+        '.bmp': 'image/bmp', '.webp': 'image/webp',
+    }
+    mimetype = mime_map.get(ext, 'application/octet-stream')
+
+    download_name = file_record.original_filename
+    try:
+        download_name.encode('ascii')
+    except UnicodeEncodeError:
+        download_name = file_record.original_filename.encode('utf-8')
+
+    return send_file(
+        disk_path,
+        mimetype=mimetype,
+        as_attachment=False,
+        download_name=download_name,
+    )
