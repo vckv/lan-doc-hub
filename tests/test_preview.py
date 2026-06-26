@@ -377,6 +377,53 @@ class TestPreviewAPI:
         assert '<strong>这是粗体文字</strong>' in data['content']
         assert '<em>，这是斜体文字</em>' in data['content']
 
+    def test_preview_xlsx_multi_sheet(self, app):
+        """Excel 文件中多个 sheet 全部展示"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        import openpyxl
+        import tempfile as tf
+        wb = openpyxl.Workbook()
+        sh1 = wb.active
+        sh1.title = '一季度'
+        sh1.append(['月份', '收入'])
+        sh1.append(['1月', '100'])
+
+        sh2 = wb.create_sheet('二季度')
+        sh2.append(['月份', '收入'])
+        sh2.append(['4月', '200'])
+
+        sh3 = wb.create_sheet('三季度')
+        sh3.append(['月份', '收入'])
+        sh3.append(['7月', '300'])
+
+        sh4 = wb.create_sheet('四季度')
+        sh4.append(['月份', '收入'])
+        sh4.append(['10月', '400'])
+
+        tmp = tf.NamedTemporaryFile(suffix='.xlsx', delete=False)
+        wb.save(tmp.name)
+        wb.close()
+        tmp.close()
+
+        with open(tmp.name, 'rb') as fh:
+            content = fh.read()
+        os.unlink(tmp.name)
+
+        _upload_file(client, content, 'quarters.xlsx', proj_id, folder_id)
+        file_id = _get_file_id(app, 'quarters.xlsx')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'html'
+        assert '一季度' in data['content']
+        assert '二季度' in data['content']
+        assert '三季度' in data['content']
+        assert '四季度' in data['content']
+
 
 class TestPreviewPage:
     """预览页面路由测试（新标签页模式）"""

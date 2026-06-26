@@ -608,7 +608,7 @@ def get_preview_data(file_id):
                 sheet_names = wb.sheet_names()
                 sheets_html = []
                 for idx, name in enumerate(sheet_names):
-                    if idx >= 3:
+                    if idx >= 20:
                         break
                     sh = wb.sheet_by_index(idx)
                     nrows = min(sh.nrows, 200)
@@ -634,7 +634,7 @@ def get_preview_data(file_id):
                 wb = openpyxl.load_workbook(disk_path, read_only=True, data_only=True)
                 sheets_html = []
                 for idx, name in enumerate(wb.sheetnames):
-                    if idx >= 3:
+                    if idx >= 20:
                         break
                     sh = wb[name]
                     rows_list = list(sh.iter_rows(max_row=200, max_col=50, values_only=True))
