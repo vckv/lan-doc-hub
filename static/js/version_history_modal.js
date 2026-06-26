@@ -42,7 +42,10 @@ var VersionHistoryModal = (function () {
 
         // 绑定按钮事件（仅一次，委托到 #vhVersionList）
         $('#vhVersionList').on('click', '.vh-btn-preview', function () {
-            alert('在线预览功能即将开放（F6 阶段）');
+            var fileId = $(this).data('file-id');
+            if (fileId) {
+                PreviewModal.open(fileId);
+            }
         });
         $('#vhVersionList').on('click', '.vh-btn-download', function () {
             alert('单文件下载功能即将开放（F8-1 阶段）');

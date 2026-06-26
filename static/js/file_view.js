@@ -337,9 +337,12 @@ $(function () {
         }
     });
 
-    // F6-1: 操作列 — 预览按钮（占位，路由由 F6-2 实现）
+    // F6-1: 操作列 — 预览按钮
     $(document).on('click', '.btn-preview-file', function () {
-        alert('在线预览功能即将开放（F6-2 阶段）');
+        var fileId = $(this).data('file-id');
+        if (fileId) {
+            PreviewModal.open(fileId);
+        }
     });
 
     // F6-1: 操作列 — 下载按钮（占位，路由由 F8-1 实现）
