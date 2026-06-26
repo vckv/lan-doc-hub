@@ -305,6 +305,78 @@ class TestPreviewAPI:
         data = json.loads(resp.data)
         assert data.get('filename') == 'test.txt'
 
+    def test_preview_docx_with_table(self, app):
+        """Word 文件包含表格时返回表格 HTML"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        from docx import Document
+        import tempfile as tf
+        doc = Document()
+        doc.add_paragraph('表格前的一段文字')
+        table = doc.add_table(rows=2, cols=3)
+        table.cell(0, 0).text = '姓名'
+        table.cell(0, 1).text = '年龄'
+        table.cell(0, 2).text = '城市'
+        table.cell(1, 0).text = '张三'
+        table.cell(1, 1).text = '28'
+        table.cell(1, 2).text = '上海'
+        doc.add_paragraph('表格后的文字')
+        tmp = tf.NamedTemporaryFile(suffix='.docx', delete=False)
+        doc.save(tmp.name)
+        tmp.close()
+
+        with open(tmp.name, 'rb') as fh:
+            content = fh.read()
+        os.unlink(tmp.name)
+
+        _upload_file(client, content, 'table_doc.docx', proj_id, folder_id)
+        file_id = _get_file_id(app, 'table_doc.docx')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'html'
+        assert '表格前的一段文字' in data['content']
+        assert '表格后的文字' in data['content']
+        assert '<table' in data['content']
+        assert '姓名' in data['content']
+        assert '张三' in data['content']
+
+    def test_preview_docx_with_bold(self, app):
+        """Word 文件中粗体文本保留 <strong> 标记"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        from docx import Document
+        import tempfile as tf
+        doc = Document()
+        para = doc.add_paragraph()
+        run1 = para.add_run('这是普通文字，')
+        run2 = para.add_run('这是粗体文字')
+        run2.bold = True
+        run3 = para.add_run('，这是斜体文字')
+        run3.italic = True
+        tmp = tf.NamedTemporaryFile(suffix='.docx', delete=False)
+        doc.save(tmp.name)
+        tmp.close()
+
+        with open(tmp.name, 'rb') as fh:
+            content = fh.read()
+        os.unlink(tmp.name)
+
+        _upload_file(client, content, 'bold_doc.docx', proj_id, folder_id)
+        file_id = _get_file_id(app, 'bold_doc.docx')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'html'
+        assert '<strong>这是粗体文字</strong>' in data['content']
+        assert '<em>，这是斜体文字</em>' in data['content']
+
 
 class TestPreviewPage:
     """预览页面路由测试（新标签页模式）"""

@@ -532,24 +532,69 @@ def get_preview_data(file_id):
         try:
             from docx import Document
             doc = Document(disk_path)
-            paragraphs = []
-            for para in doc.paragraphs:
-                text = para.text.strip()
-                if not text:
-                    paragraphs.append('<p>&nbsp;</p>')
-                    continue
-                text = _html_escape(text)
-                if para.style and para.style.name and para.style.name.startswith('Heading'):
-                    level = para.style.name.split()[-1]
-                    try:
-                        lv = int(level)
-                        tag = f'h{min(lv, 6)}'
-                    except ValueError:
-                        tag = 'p'
-                    paragraphs.append(f'<{tag}>{text}</{tag}>')
-                else:
-                    paragraphs.append(f'<p>{text}</p>')
-            content = '<div class="preview-word">' + ''.join(paragraphs) + '</div>'
+
+            table_index = 0
+            body = doc.element.body
+            elements = []
+            for child in body:
+                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                if tag == 'p':
+                    elements.append(('para', child))
+                elif tag == 'tbl':
+                    if table_index < len(doc.tables):
+                        elements.append(('table', doc.tables[table_index]))
+                        table_index += 1
+
+            html_parts = []
+
+            for el_type, el in elements:
+                if el_type == 'para':
+                    para = None
+                    for p in doc.paragraphs:
+                        if p._element is el:
+                            para = p
+                            break
+                    if para is None:
+                        continue
+                    runs_html = []
+                    for run in para.runs:
+                        text = run.text
+                        if not text:
+                            continue
+                        text = _html_escape(text)
+                        if run.font.bold and run.font.italic:
+                            text = f'<strong><em>{text}</em></strong>'
+                        elif run.font.bold:
+                            text = f'<strong>{text}</strong>'
+                        elif run.font.italic:
+                            text = f'<em>{text}</em>'
+                        runs_html.append(text)
+                    full_text = ''.join(runs_html)
+                    if not full_text:
+                        html_parts.append('<p>&nbsp;</p>')
+                    elif para.style and para.style.name and para.style.name.startswith('Heading'):
+                        level = para.style.name.split()[-1]
+                        try:
+                            lv = int(level)
+                            tag = f'h{min(lv, 6)}'
+                        except ValueError:
+                            tag = 'p'
+                        html_parts.append(f'<{tag}>{full_text}</{tag}>')
+                    else:
+                        html_parts.append(f'<p>{full_text}</p>')
+
+                elif el_type == 'table':
+                    tbl = ['<table class="preview-csv-table"><tbody>']
+                    for row in el.rows:
+                        tbl.append('<tr>')
+                        for cell in row.cells:
+                            cell_text = _html_escape(cell.text.strip())
+                            tbl.append(f'<td>{cell_text or "&nbsp;"}</td>')
+                        tbl.append('</tr>')
+                    tbl.append('</tbody></table>')
+                    html_parts.append(''.join(tbl))
+
+            content = '<div class="preview-word">' + ''.join(html_parts) + '</div>'
             return {'success': True, 'type': 'html', 'content': content, 'filename': filename}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'Word 解析失败: {str(e)}']}}
