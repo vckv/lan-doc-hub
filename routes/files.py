@@ -1,5 +1,7 @@
 """文件路由蓝图 —— 上传、列表、编号预生成"""
 
+import os
+
 from flask import Blueprint, jsonify, request, session, abort, current_app
 
 from models import File
@@ -215,8 +217,9 @@ def api_stream_file(file_id):
     """GET /api/files/<id>/stream → 流式传输原始文件（图片/PDF 直接展示）"""
 
     from flask import send_file
+    from models import db as _db
 
-    file_record = db.session.get(File, file_id)
+    file_record = _db.session.get(File, file_id)
     if file_record is None:
         return jsonify({'success': False, 'errors': {'file_id': ['文件不存在']}}), 404
 
