@@ -425,3 +425,217 @@ def get_file_version_history(file_id):
         },
         'history': history,
     }
+
+
+# ── F6-2 在线预览 ──
+
+def get_preview_data(file_id):
+    """获取文件预览数据
+
+    根据文件类型返回不同的预览数据结构：
+    - Image/PDF: {'type': 'stream', 'stream_url': '/api/files/<id>/stream'}
+    - TXT: {'type': 'text', 'content': str, 'encoding': str}
+    - CSV: {'type': 'csv', 'headers': [str], 'rows': [[str]]}
+    - Word/Excel/PPT: {'type': 'html', 'content': str}
+
+    Args:
+        file_id: 文件 ID
+
+    Returns:
+        dict: {'success': bool, ...}  — 预览数据结构或错误信息
+    """
+    from flask import current_app
+    import csv as csv_module
+
+    file_record = db.session.get(File, file_id)
+    if file_record is None:
+        return {'success': False, 'errors': {'file_id': ['文件不存在']}}
+
+    disk_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file_record.file_path)
+    if not os.path.isfile(disk_path):
+        return {'success': False, 'errors': {'file': ['磁盘文件丢失']}}
+
+    ft = file_record.file_type
+
+    # ── 图片 / PDF：返回 stream 地址 ──
+    if ft == 'Image' or ft == 'PDF':
+        return {
+            'success': True,
+            'type': 'stream',
+            'stream_url': f'/api/files/{file_id}/stream',
+        }
+
+    # ── 纯文本 ──
+    if ft == 'TXT':
+        content = None
+        encoding = 'utf-8'
+        for enc in ('utf-8', 'gbk', 'latin-1'):
+            try:
+                with open(disk_path, 'r', encoding=enc) as fh:
+                    content = fh.read()
+                encoding = enc
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        if content is None:
+            return {'success': False, 'errors': {'file': ['无法解码文件内容']}}
+        return {
+            'success': True,
+            'type': 'text',
+            'content': content,
+            'encoding': encoding,
+        }
+
+    # ── CSV ──
+    if ft == 'CSV':
+        try:
+            with open(disk_path, 'r', encoding='utf-8-sig', errors='replace') as fh:
+                reader = csv_module.reader(fh)
+                rows = list(reader)
+            if not rows:
+                return {'success': True, 'type': 'csv', 'headers': [], 'rows': []}
+            headers = rows[0]
+            data_rows = rows[1:]
+            headers = headers[:50]
+            data_rows = [row[:50] for row in data_rows[:500]]
+            return {
+                'success': True,
+                'type': 'csv',
+                'headers': headers,
+                'rows': data_rows,
+            }
+        except Exception as e:
+            return {'success': False, 'errors': {'file': [f'CSV 解析失败: {str(e)}']}}
+
+    # ── Word (.docx) ──
+    if ft == 'Word':
+        ext = os.path.splitext(file_record.original_filename)[1].lower()
+        if ext == '.doc':
+            return {
+                'success': True,
+                'type': 'html',
+                'content': '<div class="preview-unsupported"><p>.doc 格式暂不支持在线预览</p><p>请下载后使用 Word 打开</p></div>',
+            }
+        try:
+            from docx import Document
+            doc = Document(disk_path)
+            paragraphs = []
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if not text:
+                    paragraphs.append('<p>&nbsp;</p>')
+                    continue
+                text = (text.replace('&', '&amp;').replace('<', '&lt;')
+                            .replace('>', '&gt;').replace('"', '&quot;'))
+                if para.style and para.style.name and para.style.name.startswith('Heading'):
+                    level = para.style.name.split()[-1]
+                    try:
+                        lv = int(level)
+                        tag = f'h{min(lv, 6)}'
+                    except ValueError:
+                        tag = 'p'
+                    paragraphs.append(f'<{tag}>{text}</{tag}>')
+                else:
+                    paragraphs.append(f'<p>{text}</p>')
+            content = '<div class="preview-word">' + ''.join(paragraphs) + '</div>'
+            return {'success': True, 'type': 'html', 'content': content}
+        except Exception as e:
+            return {'success': False, 'errors': {'file': [f'Word 解析失败: {str(e)}']}}
+
+    # ── Excel (.xlsx / .xls) ──
+    if ft == 'Excel':
+        ext = os.path.splitext(file_record.original_filename)[1].lower()
+        try:
+            if ext == '.xls':
+                import xlrd
+                wb = xlrd.open_workbook(disk_path)
+                sheet_names = wb.sheet_names()
+                sheets_html = []
+                for idx, name in enumerate(sheet_names):
+                    if idx >= 3:
+                        break
+                    sh = wb.sheet_by_index(idx)
+                    nrows = min(sh.nrows, 200)
+                    ncols = min(sh.ncols, 50)
+                    tbl = ['<table class="preview-csv-table"><thead><tr>']
+                    for c in range(ncols):
+                        val = str(sh.cell_value(0, c) if nrows > 0 else '')
+                        tbl.append(f'<th>{_html_escape(val)}</th>')
+                    tbl.append('</tr></thead><tbody>')
+                    for r in range(1, nrows):
+                        tbl.append('<tr>')
+                        for c in range(ncols):
+                            val = str(sh.cell_value(r, c))
+                            tbl.append(f'<td>{_html_escape(val)}</td>')
+                        tbl.append('</tr>')
+                    tbl.append('</tbody></table>')
+                    sheets_html.append(
+                        f'<div class="preview-sheet"><h5>Sheet: {_html_escape(name)}</h5>{"".join(tbl)}</div>'
+                    )
+                content = '<div class="preview-excel">' + ''.join(sheets_html) + '</div>'
+            else:
+                import openpyxl
+                wb = openpyxl.load_workbook(disk_path, read_only=True, data_only=True)
+                sheets_html = []
+                for idx, name in enumerate(wb.sheetnames):
+                    if idx >= 3:
+                        break
+                    sh = wb[name]
+                    rows = list(sh.iter_rows(max_row=200, max_col=50, values_only=True))
+                    if not rows:
+                        continue
+                    tbl = ['<table class="preview-csv-table"><thead><tr>']
+                    for cell in rows[0]:
+                        val = str(cell) if cell is not None else ''
+                        tbl.append(f'<th>{_html_escape(val)}</th>')
+                    tbl.append('</tr></thead><tbody>')
+                    for row in rows[1:]:
+                        tbl.append('<tr>')
+                        for cell in row:
+                            val = str(cell) if cell is not None else ''
+                            tbl.append(f'<td>{_html_escape(val)}</td>')
+                        tbl.append('</tr>')
+                    tbl.append('</tbody></table>')
+                    sheets_html.append(
+                        f'<div class="preview-sheet"><h5>Sheet: {_html_escape(name)}</h5>{"".join(tbl)}</div>'
+                    )
+                content = '<div class="preview-excel">' + ''.join(sheets_html) + '</div>'
+                wb.close()
+            return {'success': True, 'type': 'html', 'content': content}
+        except Exception as e:
+            return {'success': False, 'errors': {'file': [f'Excel 解析失败: {str(e)}']}}
+
+    # ── PowerPoint (.pptx) ──
+    if ft == 'PowerPoint':
+        try:
+            from pptx import Presentation
+            prs = Presentation(disk_path)
+            slides_html = []
+            for idx, slide in enumerate(prs.slides):
+                if idx >= 30:
+                    break
+                texts = []
+                for shape in slide.shapes:
+                    if shape.has_text_frame:
+                        for para in shape.text_frame.paragraphs:
+                            t = para.text.strip()
+                            if t:
+                                texts.append(f'<p>{_html_escape(t)}</p>')
+                slides_html.append(
+                    f'<div class="preview-slide"><h5>第 {idx + 1} 页</h5>{"".join(texts)}</div>'
+                )
+            content = '<div class="preview-pptx">' + ''.join(slides_html) + '</div>'
+            return {'success': True, 'type': 'html', 'content': content}
+        except Exception as e:
+            return {'success': False, 'errors': {'file': [f'PPT 解析失败: {str(e)}']}}
+
+    # ── 未知类型 ──
+    return {'success': False, 'errors': {'file': ['不支持该文件类型的预览']}}
+
+
+def _html_escape(text):
+    """HTML 转义辅助函数"""
+    return (text.replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+                .replace('"', '&quot;'))
