@@ -54,8 +54,14 @@ class Config:
 
     # ── F3-1 文件类型白名单 ──
     ALLOWED_EXTENSIONS = {
-        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-        'txt', 'csv', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp',
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx',
+        'txt', 'csv', 'md',
+        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+        'mp4', 'avi', 'mov', 'webm',
+        'py', 'js', 'ts', 'html', 'css', 'java', 'cpp', 'c', 'go', 'rs',
+        'sql', 'sh', 'yaml', 'yml', 'json', 'xml', 'ini', 'cfg', 'toml',
+        'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'tgz',
+        'dwg', 'dxf',
     }
     ALLOWED_MIME_TYPES = {
         'application/pdf',
@@ -67,5 +73,11 @@ class Config:
         'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'text/plain',
         'text/csv',
+        'text/markdown',
         'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
+        'image/svg+xml',
+        'video/mp4', 'video/x-msvideo', 'video/quicktime', 'video/webm',
+        'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
+        'application/x-tar', 'application/gzip', 'application/x-bzip2',
+        'application/vnd.dwg', 'application/dxf',
     }
