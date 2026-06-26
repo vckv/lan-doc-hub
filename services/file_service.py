@@ -438,6 +438,18 @@ def get_file_version_history(file_id):
 # ── F6-2 在线预览 ──
 
 
+def _format_file_size(size_bytes):
+    if size_bytes is None or size_bytes < 0:
+        return '0 B'
+    if size_bytes < 1024:
+        return f'{size_bytes} B'
+    if size_bytes < 1024 * 1024:
+        return f'{size_bytes / 1024:.1f} KB'
+    if size_bytes < 1024 * 1024 * 1024:
+        return f'{size_bytes / (1024 * 1024):.1f} MB'
+    return f'{size_bytes / (1024 * 1024 * 1024):.2f} GB'
+
+
 def get_preview_data(file_id):
     """获取文件预览数据
 
@@ -467,13 +479,27 @@ def get_preview_data(file_id):
     ft = file_record.file_type
     filename = file_record.original_filename
 
+    tags_data = [{'name': t.name, 'color': t.color} for t in file_record.tags]
+    metadata = {
+        'file_size': _format_file_size(file_record.file_size),
+        'file_type': ft,
+        'file_number': file_record.file_number,
+        'version_number': file_record.version_number,
+        'version_note': file_record.version_note or '',
+        'created_at': file_record.created_at.strftime('%Y-%m-%d %H:%M') if file_record.created_at else '',
+        'uploader_name': file_record.uploader.display_name if file_record.uploader else '',
+        'project_model': file_record.project.model if file_record.project else '',
+        'project_name': file_record.project.name if file_record.project else '',
+        'tags': tags_data,
+    }
+
     if ft == 'Image' or ft == 'PDF':
         return {
             'success': True,
             'type': 'stream',
             'stream_url': f'/api/files/{file_id}/stream',
             'filename': filename,
-            'file_type': ft,
+            **metadata,
         }
 
     if ft == 'TXT' or ft == 'Code' or ft == 'Markdown':
@@ -499,6 +525,7 @@ def get_preview_data(file_id):
             'encoding': encoding,
             'filename': filename,
             'file_type': ft,
+            **metadata,
         }
 
     if ft == 'CSV':
@@ -507,7 +534,7 @@ def get_preview_data(file_id):
                 reader = csv_module.reader(fh)
                 rows = list(reader)
             if not rows:
-                return {'success': True, 'type': 'csv', 'headers': [], 'rows': [], 'filename': filename, 'file_type': ft}
+                return {'success': True, 'type': 'csv', 'headers': [], 'rows': [], 'filename': filename, 'file_type': ft, **metadata}
             headers = rows[0]
             data_rows = rows[1:]
             headers = headers[:50]
@@ -519,6 +546,7 @@ def get_preview_data(file_id):
                 'rows': data_rows,
                 'filename': filename,
                 'file_type': ft,
+                **metadata,
             }
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'CSV 解析失败: {str(e)}']}}
@@ -532,6 +560,7 @@ def get_preview_data(file_id):
                 'content': '<div class="preview-unsupported"><p>.doc 格式暂不支持在线预览</p><p>请下载后使用 Word 打开</p></div>',
                 'filename': filename,
                 'file_type': ft,
+                **metadata,
             }
         try:
             from docx import Document
@@ -599,7 +628,7 @@ def get_preview_data(file_id):
                     html_parts.append(''.join(tbl))
 
             content = '<div class="preview-word">' + ''.join(html_parts) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft, **metadata}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'Word 解析失败: {str(e)}']}}
 
@@ -661,7 +690,7 @@ def get_preview_data(file_id):
                     )
                 content = '<div class="preview-excel">' + ''.join(sheets_html) + '</div>'
                 wb.close()
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft, **metadata}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'Excel 解析失败: {str(e)}']}}
 
@@ -684,7 +713,7 @@ def get_preview_data(file_id):
                     f'<div class="preview-slide"><h5>第 {idx + 1} 页</h5>{"".join(texts)}</div>'
                 )
             content = '<div class="preview-pptx">' + ''.join(slides_html) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft, **metadata}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'PPT 解析失败: {str(e)}']}}
 

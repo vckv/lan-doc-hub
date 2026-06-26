@@ -21,12 +21,6 @@
         .preview-header .badge { font-size: 11px; flex-shrink: 0; }
         .preview-header .btn-back { margin-left: auto; font-size: 13px; }
 
-        .preview-body {
-            padding: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
         .preview-text {
             background: #fff;
             border: 1px solid #dee2e6;
@@ -109,6 +103,92 @@
             color: #999;
         }
         .preview-error .icon { font-size: 48px; margin-bottom: 16px; }
+
+        .preview-wrapper {
+            display: flex;
+            gap: 0;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 16px 24px;
+            min-height: calc(100vh - 80px);
+        }
+
+        .preview-main {
+            flex: 1;
+            min-width: 0;
+            padding: 0;
+        }
+
+        .preview-sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            border-left: 1px solid #dee2e6;
+            padding: 16px 12px;
+            background: #f8f9fa;
+        }
+
+        .preview-sidebar h6 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #6c757d;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .preview-meta-item {
+            margin-bottom: 8px;
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+
+        .preview-meta-item .meta-label {
+            color: #6c757d;
+            font-size: 0.72rem;
+        }
+
+        .preview-meta-item .meta-value {
+            color: #212529;
+            word-break: break-all;
+        }
+
+        .preview-meta-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .preview-meta-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.72rem;
+            padding: 1px 6px;
+            border-radius: 8px;
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .preview-meta-tag .tag-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        @media (max-width: 768px) {
+            .preview-wrapper {
+                flex-direction: column;
+            }
+            .preview-sidebar {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid #dee2e6;
+                margin-top: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -132,7 +212,8 @@
     <a href="/" class="btn btn-outline-secondary btn-sm btn-back">&larr; 返回主页</a>
 </div>
 
-<div class="preview-body">
+<div class="preview-wrapper">
+    <div class="preview-main">
 
 {% if stream_url %}
     <div class="preview-stream">
@@ -176,6 +257,59 @@
     </div>
 {% endif %}
 
+    </div>
+    <div class="preview-sidebar">
+        <h6>文件信息</h6>
+        {% if metadata %}
+            <div class="preview-meta-item">
+                <div class="meta-label">文件大小</div>
+                <div class="meta-value">{{ metadata.file_size }}</div>
+            </div>
+            <div class="preview-meta-item">
+                <div class="meta-label">文件类型</div>
+                <div class="meta-value">{{ metadata.file_type }}</div>
+            </div>
+            {% if metadata.file_number %}
+            <div class="preview-meta-item">
+                <div class="meta-label">文件编号</div>
+                <div class="meta-value" style="font-size:0.78rem;font-family:monospace">{{ metadata.file_number }}</div>
+            </div>
+            {% endif %}
+            <div class="preview-meta-item">
+                <div class="meta-label">版本</div>
+                <div class="meta-value">{{ metadata.version_number }}{% if metadata.version_note %} — {{ metadata.version_note[:20] }}{% endif %}</div>
+            </div>
+            {% if metadata.project_model %}
+            <div class="preview-meta-item">
+                <div class="meta-label">所属项目</div>
+                <div class="meta-value">{{ metadata.project_model }} — {{ metadata.project_name }}</div>
+            </div>
+            {% endif %}
+            <div class="preview-meta-item">
+                <div class="meta-label">上传者</div>
+                <div class="meta-value">{{ metadata.uploader_name }}</div>
+            </div>
+            <div class="preview-meta-item">
+                <div class="meta-label">上传时间</div>
+                <div class="meta-value" style="font-size:0.75rem">{{ metadata.created_at }}</div>
+            </div>
+            {% if metadata.tags %}
+            <div class="preview-meta-item">
+                <div class="meta-label">标签</div>
+                <div class="preview-meta-tags">
+                    {% for tag in metadata.tags %}
+                    <span class="preview-meta-tag">
+                        <span class="tag-dot" style="background:{{ tag.color }}"></span>
+                        {{ tag.name }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        {% else %}
+            <p class="text-muted" style="font-size:0.8rem">暂无元数据</p>
+        {% endif %}
+    </div>
 </div>
 
 </body>
