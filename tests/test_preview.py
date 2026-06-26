@@ -424,6 +424,99 @@ class TestPreviewAPI:
         assert '三季度' in data['content']
         assert '四季度' in data['content']
 
+    def test_preview_pdf_returns_stream_url(self, app):
+        """PDF 文件预览返回 stream 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        pdf_data = (
+            b'%PDF-1.4\n'
+            b'1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n'
+            b'2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n'
+            b'3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n'
+            b'xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n'
+            b'trailer<</Size 4/Root 1 0 R>>\n'
+            b'startxref\n190\n%%EOF'
+        )
+        _upload_file(client, pdf_data, 'doc.pdf', proj_id, folder_id)
+        file_id = _get_file_id(app, 'doc.pdf')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'stream'
+        assert data['filename'] == 'doc.pdf'
+        assert f'/api/files/{file_id}/stream' in data['stream_url']
+
+    def test_stream_pdf_returns_pdf_mime(self, app):
+        """PDF stream 端点返回 application/pdf MIME"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        pdf_data = (
+            b'%PDF-1.4\n'
+            b'1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n'
+            b'2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n'
+            b'3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n'
+            b'xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n'
+            b'trailer<</Size 4/Root 1 0 R>>\n'
+            b'startxref\n190\n%%EOF'
+        )
+        _upload_file(client, pdf_data, 'stream_test.pdf', proj_id, folder_id)
+        file_id = _get_file_id(app, 'stream_test.pdf')
+
+        resp = client.get(f'/api/files/{file_id}/stream')
+        assert resp.status_code == 200
+        assert resp.content_type == 'application/pdf'
+        assert resp.data == pdf_data
+
+    def test_preview_page_pdf_has_iframe(self, app):
+        """PDF 预览页面包含 iframe 加载 stream"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        pdf_data = (
+            b'%PDF-1.4\n'
+            b'1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n'
+            b'2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n'
+            b'3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n'
+            b'xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n'
+            b'trailer<</Size 4/Root 1 0 R>>\n'
+            b'startxref\n190\n%%EOF'
+        )
+        _upload_file(client, pdf_data, 'page_test.pdf', proj_id, folder_id)
+        file_id = _get_file_id(app, 'page_test.pdf')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert 'preview-stream' in html
+        assert f'/api/files/{file_id}/stream' in html
+        assert 'doc.pdf' not in html
+
+    def test_preview_page_pdf_has_badge(self, app):
+        """PDF 预览页面顶栏显示 PDF 类型标签"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        pdf_data = (
+            b'%PDF-1.4\n'
+            b'1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n'
+            b'2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n'
+            b'3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n'
+            b'xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n'
+            b'trailer<</Size 4/Root 1 0 R>>\n'
+            b'startxref\n190\n%%EOF'
+        )
+        _upload_file(client, pdf_data, 'badge_test.pdf', proj_id, folder_id)
+        file_id = _get_file_id(app, 'badge_test.pdf')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert 'PDF' in html
+
 
 class TestPreviewPage:
     """预览页面路由测试（新标签页模式）"""
