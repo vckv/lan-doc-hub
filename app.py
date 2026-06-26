@@ -216,6 +216,16 @@ def register_routes(app):
             abort(404)
         return render_template('file_versions.html', **data)
 
+    @app.route('/preview/<int:file_id>')
+    @login_required
+    def preview_page(file_id):
+        """GET /preview/<id> → 文件预览页面（新标签页）"""
+        from services.file_service import get_preview_data
+        data = get_preview_data(file_id)
+        if not data.get('success'):
+            abort(404)
+        return render_template('preview.html', **data)
+
 
 if __name__ == '__main__':
     app = create_app()

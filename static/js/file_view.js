@@ -341,7 +341,7 @@ $(function () {
     $(document).on('click', '.btn-preview-file', function () {
         var fileId = $(this).data('file-id');
         if (fileId) {
-            PreviewModal.open(fileId);
+            window.open('/preview/' + fileId, '_blank');
         }
     });
 

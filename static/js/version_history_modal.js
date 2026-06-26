@@ -44,7 +44,7 @@ var VersionHistoryModal = (function () {
         $('#vhVersionList').on('click', '.vh-btn-preview', function () {
             var fileId = $(this).data('file-id');
             if (fileId) {
-                PreviewModal.open(fileId);
+                window.open('/preview/' + fileId, '_blank');
             }
         });
         $('#vhVersionList').on('click', '.vh-btn-download', function () {

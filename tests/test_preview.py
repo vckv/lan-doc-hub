@@ -260,3 +260,80 @@ class TestPreviewAPI:
         assert data['type'] == 'html'
         assert 'Alice' in data['content']
         assert 'Score' in data['content']
+
+
+class TestPreviewPage:
+    """预览页面路由测试（新标签页模式）"""
+
+    def test_preview_page_text(self, app):
+        """TXT 文件预览页面返回 200 并包含文本内容"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, 'Hello World'.encode('utf-8'), 'readme.txt', proj_id, folder_id)
+        file_id = _get_file_id(app, 'readme.txt')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        assert 'Hello World' in resp.data.decode('utf-8')
+        assert '纯文本' in resp.data.decode('utf-8')
+
+    def test_preview_page_image(self, app):
+        """图片文件预览页面返回 iframe 加载 stream"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        png_data = (
+            b'\x89PNG\r\n\x1a\n' + b'\x00' * 4 +
+            b'IHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde'
+            + b'\x00' * 4 + b'IDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N'
+            + b'\x00' * 4 + b'IEND\xaeB`\x82'
+        )
+        _upload_file(client, png_data, 'img.png', proj_id, folder_id)
+        file_id = _get_file_id(app, 'img.png')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert 'preview-stream' in html
+        assert f'/api/files/{file_id}/stream' in html
+
+    def test_preview_page_nonexistent_returns_404(self, app):
+        """不存在的文件预览页面返回 404"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        resp = client.get('/preview/99999')
+        assert resp.status_code == 404
+
+    def test_preview_page_requires_login(self, app):
+        """未登录用户访问预览页面重定向到登录页"""
+        client = app.test_client()
+        resp = client.get('/preview/1', follow_redirects=False)
+        assert resp.status_code in (302, 401)
+
+    def test_preview_page_docx(self, app):
+        """Word (.docx) 文件预览页面返回 HTML"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        from docx import Document
+        import tempfile as tf
+        doc = Document()
+        doc.add_heading('测试', level=1)
+        doc.add_paragraph('内容')
+        tmp = tf.NamedTemporaryFile(suffix='.docx', delete=False)
+        doc.save(tmp.name)
+        tmp.close()
+
+        with open(tmp.name, 'rb') as fh:
+            content = fh.read()
+        os.unlink(tmp.name)
+
+        _upload_file(client, content, 'doc.docx', proj_id, folder_id)
+        file_id = _get_file_id(app, 'doc.docx')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert '测试' in html
+        assert '内容' in html
+        assert 'Office 文档' in html
