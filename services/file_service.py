@@ -473,6 +473,7 @@ def get_preview_data(file_id):
             'type': 'stream',
             'stream_url': f'/api/files/{file_id}/stream',
             'filename': filename,
+            'file_type': ft,
         }
 
     if ft == 'TXT' or ft == 'Code' or ft == 'Markdown':
@@ -497,6 +498,7 @@ def get_preview_data(file_id):
             'content': content,
             'encoding': encoding,
             'filename': filename,
+            'file_type': ft,
         }
 
     if ft == 'CSV':
@@ -505,7 +507,7 @@ def get_preview_data(file_id):
                 reader = csv_module.reader(fh)
                 rows = list(reader)
             if not rows:
-                return {'success': True, 'type': 'csv', 'headers': [], 'rows': [], 'filename': filename}
+                return {'success': True, 'type': 'csv', 'headers': [], 'rows': [], 'filename': filename, 'file_type': ft}
             headers = rows[0]
             data_rows = rows[1:]
             headers = headers[:50]
@@ -516,6 +518,7 @@ def get_preview_data(file_id):
                 'headers': headers,
                 'rows': data_rows,
                 'filename': filename,
+                'file_type': ft,
             }
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'CSV 解析失败: {str(e)}']}}
@@ -528,6 +531,7 @@ def get_preview_data(file_id):
                 'type': 'html',
                 'content': '<div class="preview-unsupported"><p>.doc 格式暂不支持在线预览</p><p>请下载后使用 Word 打开</p></div>',
                 'filename': filename,
+                'file_type': ft,
             }
         try:
             from docx import Document
@@ -595,7 +599,7 @@ def get_preview_data(file_id):
                     html_parts.append(''.join(tbl))
 
             content = '<div class="preview-word">' + ''.join(html_parts) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'Word 解析失败: {str(e)}']}}
 
@@ -657,7 +661,7 @@ def get_preview_data(file_id):
                     )
                 content = '<div class="preview-excel">' + ''.join(sheets_html) + '</div>'
                 wb.close()
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'Excel 解析失败: {str(e)}']}}
 
@@ -680,7 +684,7 @@ def get_preview_data(file_id):
                     f'<div class="preview-slide"><h5>第 {idx + 1} 页</h5>{"".join(texts)}</div>'
                 )
             content = '<div class="preview-pptx">' + ''.join(slides_html) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'PPT 解析失败: {str(e)}']}}
 

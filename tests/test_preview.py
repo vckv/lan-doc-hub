@@ -532,7 +532,7 @@ class TestPreviewPage:
         resp = client.get(f'/preview/{file_id}')
         assert resp.status_code == 200
         assert 'Hello World' in resp.data.decode('utf-8')
-        assert '纯文本' in resp.data.decode('utf-8')
+        assert 'TXT' in resp.data.decode('utf-8')
 
     def test_preview_page_image(self, app):
         """图片文件预览页面返回 iframe 加载 stream"""
@@ -592,7 +592,7 @@ class TestPreviewPage:
         html = resp.data.decode('utf-8')
         assert '测试' in html
         assert '内容' in html
-        assert 'Office 文档' in html
+        assert 'Word' in html
 
     def test_preview_page_shows_filename(self, app):
         """预览页面显示文件名"""

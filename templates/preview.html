@@ -118,7 +118,9 @@
     {% if filename %}
         <h6 title="{{ filename }}">{{ filename }}</h6>
     {% endif %}
-    {% if stream_url %}
+    {% if file_type %}
+        <span class="badge badge-secondary">{{ file_type }}</span>
+    {% elif stream_url %}
         <span class="badge badge-secondary">图片 / PDF</span>
     {% elif type == 'text' %}
         <span class="badge badge-secondary">纯文本 ({{ encoding }})</span>
