@@ -724,3 +724,67 @@ html, body {
 .col-operations {
     width: 100px;
 }
+
+/* ── F6-2 在线预览 ── */
+#previewModal .modal-xl {
+    max-width: 95vw;
+}
+
+#previewModal .modal-body {
+    min-height: 50vh;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.preview-text {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 70vh;
+    overflow-y: auto;
+    color: #333;
+}
+
+.preview-csv-table {
+    font-size: 13px;
+    width: auto !important;
+}
+
+.preview-csv-table th {
+    white-space: nowrap;
+    background: #f0f0f0;
+}
+
+.preview-csv-table td {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.preview-csv {
+    overflow-x: auto;
+}
+
+.preview-iframe {
+    width: 100%;
+    min-height: 70vh;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.preview-stream-container {
+    display: flex;
+    justify-content: center;
+}
+
+.preview-stream-container img {
+    max-width: 100%;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
