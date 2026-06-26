@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件预览 - LAN Doc Hub</title>
+    <title>{% if filename %}{{ filename }} - {% endif %}文件预览 - LAN Doc Hub</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,8 +17,9 @@
             align-items: center;
             gap: 12px;
         }
-        .preview-header h6 { margin: 0; font-size: 14px; color: #333; }
-        .preview-header .badge { font-size: 11px; }
+        .preview-header h6 { margin: 0; font-size: 14px; color: #333; max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .preview-header .badge { font-size: 11px; flex-shrink: 0; }
+        .preview-header .btn-back { margin-left: auto; font-size: 13px; }
 
         .preview-body {
             padding: 20px;
@@ -36,12 +37,15 @@
             white-space: pre-wrap;
             word-wrap: break-word;
             color: #333;
+            max-height: 85vh;
+            overflow-y: auto;
         }
 
         .preview-stream {
             display: flex;
+            flex-direction: column;
             justify-content: center;
-            align-items: flex-start;
+            align-items: center;
             min-height: 85vh;
         }
         .preview-stream iframe {
@@ -49,6 +53,11 @@
             height: 90vh;
             border: none;
             border-radius: 6px;
+        }
+        .preview-stream .stream-fallback {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #999;
         }
 
         .preview-table-wrap {
@@ -106,6 +115,9 @@
 
 <div class="preview-header">
     <strong>&#128269; 文件预览</strong>
+    {% if filename %}
+        <h6 title="{{ filename }}">{{ filename }}</h6>
+    {% endif %}
     {% if stream_url %}
         <span class="badge badge-secondary">图片 / PDF</span>
     {% elif type == 'text' %}
@@ -115,6 +127,7 @@
     {% elif type == 'html' %}
         <span class="badge badge-secondary">Office 文档</span>
     {% endif %}
+    <a href="/" class="btn btn-outline-secondary btn-sm btn-back">&larr; 返回主页</a>
 </div>
 
 <div class="preview-body">
@@ -122,6 +135,7 @@
 {% if stream_url %}
     <div class="preview-stream">
         <iframe src="{{ stream_url }}" frameborder="0"></iframe>
+        <div class="stream-fallback">如文件无法正常显示，请尝试刷新页面或在主页面下载后查看</div>
     </div>
 
 {% elif type == 'text' %}
@@ -156,6 +170,7 @@
     <div class="preview-error">
         <div class="icon">&#9888;</div>
         <p>不支持该文件类型的预览</p>
+        <a href="/" class="btn btn-outline-secondary btn-sm mt-3">&larr; 返回主页</a>
     </div>
 {% endif %}
 

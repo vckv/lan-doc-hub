@@ -261,6 +261,50 @@ class TestPreviewAPI:
         assert 'Alice' in data['content']
         assert 'Score' in data['content']
 
+    def test_preview_code_file(self, app):
+        """代码文件返回文本预览"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'print("hello")', 'script.py', proj_id, folder_id)
+        file_id = _get_file_id(app, 'script.py')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'text'
+        assert 'print("hello")' in data['content']
+        assert data.get('filename') == 'script.py'
+
+    def test_preview_markdown_file(self, app):
+        """Markdown 文件返回文本预览"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, '# 标题\n内容'.encode('utf-8'), 'readme.md', proj_id, folder_id)
+        file_id = _get_file_id(app, 'readme.md')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'text'
+        assert '# 标题' in data['content']
+
+    def test_preview_filename_in_response(self, app):
+        """预览响应包含 filename 字段"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'data', 'test.txt', proj_id, folder_id)
+        file_id = _get_file_id(app, 'test.txt')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data.get('filename') == 'test.txt'
+
 
 class TestPreviewPage:
     """预览页面路由测试（新标签页模式）"""
@@ -337,3 +381,35 @@ class TestPreviewPage:
         assert '测试' in html
         assert '内容' in html
         assert 'Office 文档' in html
+
+    def test_preview_page_shows_filename(self, app):
+        """预览页面显示文件名"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, 'hello'.encode('utf-8'), '我的文件.txt', proj_id, folder_id)
+        file_id = _get_file_id(app, '我的文件.txt')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert '我的文件.txt' in html
+
+    def test_preview_page_stream_has_fallback(self, app):
+        """图片预览页面包含 stream fallback 提示"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        png_data = (
+            b'\x89PNG\r\n\x1a\n' + b'\x00' * 4 +
+            b'IHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde'
+            + b'\x00' * 4 + b'IDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N'
+            + b'\x00' * 4 + b'IEND\xaeB`\x82'
+        )
+        _upload_file(client, png_data, 'img.png', proj_id, folder_id)
+        file_id = _get_file_id(app, 'img.png')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert 'stream-fallback' in html

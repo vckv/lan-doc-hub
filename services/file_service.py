@@ -316,11 +316,19 @@ def _classify_file_type(ext, mime=None):
         'doc': 'Word', 'docx': 'Word',
         'xls': 'Excel', 'xlsx': 'Excel', 'xlsm': 'Excel',
         'ppt': 'PowerPoint', 'pptx': 'PowerPoint',
-        'txt': 'TXT', 'csv': 'CSV',
+        'txt': 'TXT', 'csv': 'CSV', 'md': 'Markdown',
         'jpg': 'Image', 'jpeg': 'Image', 'png': 'Image',
-        'gif': 'Image', 'bmp': 'Image', 'webp': 'Image',
+        'gif': 'Image', 'bmp': 'Image', 'webp': 'Image', 'svg': 'Image',
+        'mp4': 'Video', 'avi': 'Video', 'mov': 'Video', 'webm': 'Video',
+        'mp3': 'Audio', 'wav': 'Audio', 'flac': 'Audio',
         'zip': 'Archive', 'rar': 'Archive', '7z': 'Archive',
+        'tar': 'Archive', 'gz': 'Archive', 'bz2': 'Archive',
         'dwg': 'CAD', 'dxf': 'CAD',
+        'py': 'Code', 'js': 'Code', 'ts': 'Code', 'html': 'Code',
+        'css': 'Code', 'java': 'Code', 'cpp': 'Code', 'c': 'Code',
+        'go': 'Code', 'rs': 'Code', 'sql': 'Code', 'sh': 'Code',
+        'yaml': 'Code', 'yml': 'Code', 'json': 'Code', 'xml': 'Code',
+        'ini': 'Code', 'cfg': 'Code', 'toml': 'Code',
     }
     result = mapping.get(ext)
     if result:
@@ -429,12 +437,13 @@ def get_file_version_history(file_id):
 
 # ── F6-2 在线预览 ──
 
+
 def get_preview_data(file_id):
     """获取文件预览数据
 
     根据文件类型返回不同的预览数据结构：
     - Image/PDF: {'type': 'stream', 'stream_url': '/api/files/<id>/stream'}
-    - TXT: {'type': 'text', 'content': str, 'encoding': str}
+    - TXT/Code/Markdown: {'type': 'text', 'content': str, 'encoding': str}
     - CSV: {'type': 'csv', 'headers': [str], 'rows': [[str]]}
     - Word/Excel/PPT: {'type': 'html', 'content': str}
 
@@ -442,7 +451,7 @@ def get_preview_data(file_id):
         file_id: 文件 ID
 
     Returns:
-        dict: {'success': bool, ...}  — 预览数据结构或错误信息
+        dict: {'success': bool, 'filename': str, ...}  — 预览数据结构或错误信息
     """
     from flask import current_app
     import csv as csv_module
@@ -456,17 +465,17 @@ def get_preview_data(file_id):
         return {'success': False, 'errors': {'file': ['磁盘文件丢失']}}
 
     ft = file_record.file_type
+    filename = file_record.original_filename
 
-    # ── 图片 / PDF：返回 stream 地址 ──
     if ft == 'Image' or ft == 'PDF':
         return {
             'success': True,
             'type': 'stream',
             'stream_url': f'/api/files/{file_id}/stream',
+            'filename': filename,
         }
 
-    # ── 纯文本 ──
-    if ft == 'TXT':
+    if ft == 'TXT' or ft == 'Code' or ft == 'Markdown':
         content = None
         encoding = 'utf-8'
         for enc in ('utf-8', 'gbk', 'latin-1'):
@@ -479,21 +488,24 @@ def get_preview_data(file_id):
                 continue
         if content is None:
             return {'success': False, 'errors': {'file': ['无法解码文件内容']}}
+        max_chars = 50000
+        if len(content) > max_chars:
+            content = content[:max_chars] + '\n\n... (内容过长，已截断)'
         return {
             'success': True,
             'type': 'text',
             'content': content,
             'encoding': encoding,
+            'filename': filename,
         }
 
-    # ── CSV ──
     if ft == 'CSV':
         try:
             with open(disk_path, 'r', encoding='utf-8-sig', errors='replace') as fh:
                 reader = csv_module.reader(fh)
                 rows = list(reader)
             if not rows:
-                return {'success': True, 'type': 'csv', 'headers': [], 'rows': []}
+                return {'success': True, 'type': 'csv', 'headers': [], 'rows': [], 'filename': filename}
             headers = rows[0]
             data_rows = rows[1:]
             headers = headers[:50]
@@ -503,11 +515,11 @@ def get_preview_data(file_id):
                 'type': 'csv',
                 'headers': headers,
                 'rows': data_rows,
+                'filename': filename,
             }
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'CSV 解析失败: {str(e)}']}}
 
-    # ── Word (.docx) ──
     if ft == 'Word':
         ext = os.path.splitext(file_record.original_filename)[1].lower()
         if ext == '.doc':
@@ -515,6 +527,7 @@ def get_preview_data(file_id):
                 'success': True,
                 'type': 'html',
                 'content': '<div class="preview-unsupported"><p>.doc 格式暂不支持在线预览</p><p>请下载后使用 Word 打开</p></div>',
+                'filename': filename,
             }
         try:
             from docx import Document
@@ -525,8 +538,7 @@ def get_preview_data(file_id):
                 if not text:
                     paragraphs.append('<p>&nbsp;</p>')
                     continue
-                text = (text.replace('&', '&amp;').replace('<', '&lt;')
-                            .replace('>', '&gt;').replace('"', '&quot;'))
+                text = _html_escape(text)
                 if para.style and para.style.name and para.style.name.startswith('Heading'):
                     level = para.style.name.split()[-1]
                     try:
@@ -538,11 +550,10 @@ def get_preview_data(file_id):
                 else:
                     paragraphs.append(f'<p>{text}</p>')
             content = '<div class="preview-word">' + ''.join(paragraphs) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'Word 解析失败: {str(e)}']}}
 
-    # ── Excel (.xlsx / .xls) ──
     if ft == 'Excel':
         ext = os.path.splitext(file_record.original_filename)[1].lower()
         try:
@@ -581,15 +592,15 @@ def get_preview_data(file_id):
                     if idx >= 3:
                         break
                     sh = wb[name]
-                    rows = list(sh.iter_rows(max_row=200, max_col=50, values_only=True))
-                    if not rows:
+                    rows_list = list(sh.iter_rows(max_row=200, max_col=50, values_only=True))
+                    if not rows_list:
                         continue
                     tbl = ['<table class="preview-csv-table"><thead><tr>']
-                    for cell in rows[0]:
+                    for cell in rows_list[0]:
                         val = str(cell) if cell is not None else ''
                         tbl.append(f'<th>{_html_escape(val)}</th>')
                     tbl.append('</tr></thead><tbody>')
-                    for row in rows[1:]:
+                    for row in rows_list[1:]:
                         tbl.append('<tr>')
                         for cell in row:
                             val = str(cell) if cell is not None else ''
@@ -601,11 +612,10 @@ def get_preview_data(file_id):
                     )
                 content = '<div class="preview-excel">' + ''.join(sheets_html) + '</div>'
                 wb.close()
-            return {'success': True, 'type': 'html', 'content': content}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'Excel 解析失败: {str(e)}']}}
 
-    # ── PowerPoint (.pptx) ──
     if ft == 'PowerPoint':
         try:
             from pptx import Presentation
@@ -625,11 +635,10 @@ def get_preview_data(file_id):
                     f'<div class="preview-slide"><h5>第 {idx + 1} 页</h5>{"".join(texts)}</div>'
                 )
             content = '<div class="preview-pptx">' + ''.join(slides_html) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content}
+            return {'success': True, 'type': 'html', 'content': content, 'filename': filename}
         except Exception as e:
             return {'success': False, 'errors': {'file': [f'PPT 解析失败: {str(e)}']}}
 
-    # ── 未知类型 ──
     return {'success': False, 'errors': {'file': ['不支持该文件类型的预览']}}
 
 
