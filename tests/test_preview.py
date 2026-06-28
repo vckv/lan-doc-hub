@@ -193,6 +193,93 @@ class TestPreviewAPI:
         assert resp.content_type == 'image/jpeg'
         assert resp.data == b'fake-png-data'
 
+    def test_preview_gif_returns_image_type(self, app):
+        """GIF 图片返回 image 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        gif_data = (
+            b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00'
+            b'\x21\xf9\x04\x00\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00\x3b'
+        )
+        _upload_file(client, gif_data, 'anim.gif', proj_id, folder_id)
+        file_id = _get_file_id(app, 'anim.gif')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'image'
+        assert 'image_url' in data
+
+        stream_resp = client.get(data['image_url'])
+        assert stream_resp.status_code == 200
+        assert stream_resp.content_type == 'image/gif'
+
+    def test_preview_bmp_returns_image_type(self, app):
+        """BMP 图片返回 image 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        bmp_header = b'BM' + (54 + 4).to_bytes(4, 'little') + b'\x00\x00\x00\x00' + (54).to_bytes(4, 'little')
+        bmp_data = bmp_header + b'\x28\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x18\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' + b'\xff\x00\x00\x00'
+        _upload_file(client, bmp_data, 'img.bmp', proj_id, folder_id)
+        file_id = _get_file_id(app, 'img.bmp')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'image'
+        assert 'image_url' in data
+
+        stream_resp = client.get(data['image_url'])
+        assert stream_resp.status_code == 200
+        assert stream_resp.content_type == 'image/bmp'
+
+    def test_preview_webp_returns_image_type(self, app):
+        """WebP 图片返回 image 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        webp_data = (
+            b'RIFF\x1a\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x01\x00\x01\x00\x00\x00'
+        )
+        _upload_file(client, webp_data, 'img.webp', proj_id, folder_id)
+        file_id = _get_file_id(app, 'img.webp')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'image'
+        assert 'image_url' in data
+
+        stream_resp = client.get(data['image_url'])
+        assert stream_resp.status_code == 200
+        assert stream_resp.content_type == 'image/webp'
+
+    def test_preview_svg_returns_image_type(self, app):
+        """SVG 图片返回 image 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        svg_data = b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>'
+        _upload_file(client, svg_data, 'icon.svg', proj_id, folder_id)
+        file_id = _get_file_id(app, 'icon.svg')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'image'
+        assert 'image_url' in data
+
+        stream_resp = client.get(data['image_url'])
+        assert stream_resp.status_code == 200
+        assert 'image/svg+xml' in stream_resp.content_type
+
     def test_preview_requires_login(self, app):
         """未登录用户无法访问预览 API"""
         client = app.test_client()
