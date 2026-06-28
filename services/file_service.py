@@ -493,7 +493,16 @@ def get_preview_data(file_id):
         'tags': tags_data,
     }
 
-    if ft == 'Image' or ft == 'PDF':
+    if ft == 'Image':
+        return {
+            'success': True,
+            'type': 'image',
+            'image_url': f'/api/files/{file_id}/stream',
+            'filename': filename,
+            **metadata,
+        }
+
+    if ft == 'PDF':
         return {
             'success': True,
             'type': 'stream',
