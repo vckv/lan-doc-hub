@@ -451,22 +451,17 @@ def _format_file_size(size_bytes):
 
 
 def get_preview_data(file_id):
-    """获取文件预览数据
+    """获取文件预览数据（缓存包装器）
 
-    根据文件类型返回不同的预览数据结构：
-    - Image/PDF: {'type': 'stream', 'stream_url': '/api/files/<id>/stream'}
-    - TXT/Code/Markdown: {'type': 'text', 'content': str, 'encoding': str}
-    - CSV: {'type': 'csv', 'headers': [str], 'rows': [[str]]}
-    - Word/Excel/PPT: {'type': 'html', 'content': str}
+    Image/PDF 直接返回（无需解析），其他类型委托给 _compute_preview_data（LRU 缓存）。
 
     Args:
         file_id: 文件 ID
 
     Returns:
-        dict: {'success': bool, 'filename': str, ...}  — 预览数据结构或错误信息
+        dict: {'success': bool, 'filename': str, ...}
     """
     from flask import current_app
-    import csv as csv_module
 
     file_record = db.session.get(File, file_id)
     if file_record is None:
@@ -495,21 +490,37 @@ def get_preview_data(file_id):
 
     if ft == 'Image':
         return {
-            'success': True,
-            'type': 'image',
+            'success': True, 'type': 'image',
             'image_url': f'/api/files/{file_id}/stream',
-            'filename': filename,
-            **metadata,
+            'filename': filename, **metadata,
         }
 
     if ft == 'PDF':
         return {
-            'success': True,
-            'type': 'stream',
+            'success': True, 'type': 'stream',
             'stream_url': f'/api/files/{file_id}/stream',
-            'filename': filename,
-            **metadata,
+            'filename': filename, **metadata,
         }
+
+    result = _compute_preview_data(file_id, file_record.file_path, ft, filename, disk_path)
+    if result is None:
+        return {'success': False, 'errors': {'file': ['不支持该文件类型的预览']}}
+    result['success'] = True
+    result['filename'] = filename
+    result['file_type'] = ft
+    result.update(metadata)
+    return result
+
+
+from functools import lru_cache
+
+
+@lru_cache(maxsize=128)
+def _compute_preview_data(file_id, file_path, ft, filename, disk_path):
+    """实际的预览数据计算，受 LRU 缓存保护。
+    (file_id, file_path) 构成缓存 key — 文件版本更新时 file_path 变化，缓存自动失效。
+    """
+    import csv as csv_module
 
     if ft == 'TXT' or ft == 'Code' or ft == 'Markdown':
         content = None
@@ -523,19 +534,13 @@ def get_preview_data(file_id):
             except (UnicodeDecodeError, UnicodeError):
                 continue
         if content is None:
-            return {'success': False, 'errors': {'file': ['无法解码文件内容']}}
+            with open(disk_path, 'r', encoding='utf-8', errors='replace') as fh:
+                content = fh.read()
+            encoding = 'utf-8 (fallback)'
         max_chars = 50000
         if len(content) > max_chars:
             content = content[:max_chars] + '\n\n... (内容过长，已截断)'
-        return {
-            'success': True,
-            'type': 'text',
-            'content': content,
-            'encoding': encoding,
-            'filename': filename,
-            'file_type': ft,
-            **metadata,
-        }
+        return {'type': 'text', 'content': content, 'encoding': encoding}
 
     if ft == 'CSV':
         try:
@@ -543,39 +548,26 @@ def get_preview_data(file_id):
                 reader = csv_module.reader(fh)
                 rows = list(reader)
             if not rows:
-                return {'success': True, 'type': 'csv', 'headers': [], 'rows': [], 'filename': filename, 'file_type': ft, **metadata}
+                return {'type': 'csv', 'headers': [], 'rows': []}
             headers = rows[0]
             data_rows = rows[1:]
             headers = headers[:50]
             data_rows = [row[:50] for row in data_rows[:500]]
-            return {
-                'success': True,
-                'type': 'csv',
-                'headers': headers,
-                'rows': data_rows,
-                'filename': filename,
-                'file_type': ft,
-                **metadata,
-            }
-        except Exception as e:
-            return {'success': False, 'errors': {'file': [f'CSV 解析失败: {str(e)}']}}
+            return {'type': 'csv', 'headers': headers, 'rows': data_rows}
+        except Exception:
+            return {'type': 'text', 'content': '(无法解析 CSV 文件)', 'encoding': 'utf-8'}
 
     if ft == 'Word':
-        ext = os.path.splitext(file_record.original_filename)[1].lower()
+        ext = os.path.splitext(filename)[1].lower()
         if ext == '.doc':
             return {
-                'success': True,
                 'type': 'html',
                 'content': '<div class="preview-unsupported"><p>.doc 格式暂不支持在线预览</p><p>请下载后使用 Word 打开</p></div>',
-                'filename': filename,
-                'file_type': ft,
-                **metadata,
             }
         try:
             from docx import Document
             doc = Document(disk_path)
 
-            table_index = 0
             body = doc.element.body
             elements = []
             for child in body:
@@ -583,19 +575,24 @@ def get_preview_data(file_id):
                 if tag == 'p':
                     elements.append(('para', child))
                 elif tag == 'tbl':
-                    if table_index < len(doc.tables):
-                        elements.append(('table', doc.tables[table_index]))
-                        table_index += 1
+                    elements.append(('table', child))
+
+            element_to_para = {}
+            for p in doc.paragraphs:
+                element_to_para[p._element] = p
 
             html_parts = []
+            para_count = 0
+            table_count = 0
+            max_paras = 500
+            max_tables = 50
 
             for el_type, el in elements:
                 if el_type == 'para':
-                    para = None
-                    for p in doc.paragraphs:
-                        if p._element is el:
-                            para = p
-                            break
+                    if para_count >= max_paras:
+                        continue
+                    para_count += 1
+                    para = element_to_para.get(el)
                     if para is None:
                         continue
                     runs_html = []
@@ -626,23 +623,35 @@ def get_preview_data(file_id):
                         html_parts.append(f'<p>{full_text}</p>')
 
                 elif el_type == 'table':
+                    if table_count >= max_tables:
+                        continue
+                    table_count += 1
+                    from docx.oxml.ns import qn
                     tbl = ['<table class="preview-csv-table"><tbody>']
-                    for row in el.rows:
+                    for row_el in el.findall(qn('w:tr')):
                         tbl.append('<tr>')
-                        for cell in row.cells:
-                            cell_text = _html_escape(cell.text.strip())
+                        for cell_el in row_el.findall(qn('w:tc')):
+                            cell_text = ''
+                            for p_el in cell_el.findall(qn('w:p')):
+                                for t_el in p_el.iter(qn('w:t')):
+                                    if t_el.text:
+                                        cell_text += t_el.text
+                            cell_text = _html_escape(cell_text.strip())
                             tbl.append(f'<td>{cell_text or "&nbsp;"}</td>')
                         tbl.append('</tr>')
                     tbl.append('</tbody></table>')
                     html_parts.append(''.join(tbl))
 
+            if para_count >= max_paras or table_count >= max_tables:
+                html_parts.append('<p class="preview-unsupported">预览内容已截断，仅显示部分内容。完整内容请下载后查看。</p>')
+
             content = '<div class="preview-word">' + ''.join(html_parts) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft, **metadata}
-        except Exception as e:
-            return {'success': False, 'errors': {'file': [f'Word 解析失败: {str(e)}']}}
+            return {'type': 'html', 'content': content}
+        except Exception:
+            return {'type': 'text', 'content': '(无法解析 Word 文档，请下载后查看)', 'encoding': 'utf-8'}
 
     if ft == 'Excel':
-        ext = os.path.splitext(file_record.original_filename)[1].lower()
+        ext = os.path.splitext(filename)[1].lower()
         try:
             if ext == '.xls':
                 import xlrd
@@ -699,9 +708,9 @@ def get_preview_data(file_id):
                     )
                 content = '<div class="preview-excel">' + ''.join(sheets_html) + '</div>'
                 wb.close()
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft, **metadata}
-        except Exception as e:
-            return {'success': False, 'errors': {'file': [f'Excel 解析失败: {str(e)}']}}
+            return {'type': 'html', 'content': content}
+        except Exception:
+            return {'type': 'text', 'content': '(无法解析 Excel 文档，请下载后查看)', 'encoding': 'utf-8'}
 
     if ft == 'PowerPoint':
         try:
@@ -722,11 +731,11 @@ def get_preview_data(file_id):
                     f'<div class="preview-slide"><h5>第 {idx + 1} 页</h5>{"".join(texts)}</div>'
                 )
             content = '<div class="preview-pptx">' + ''.join(slides_html) + '</div>'
-            return {'success': True, 'type': 'html', 'content': content, 'filename': filename, 'file_type': ft, **metadata}
-        except Exception as e:
-            return {'success': False, 'errors': {'file': [f'PPT 解析失败: {str(e)}']}}
+            return {'type': 'html', 'content': content}
+        except Exception:
+            return {'type': 'text', 'content': '(无法解析 PPT 文档，请下载后查看)', 'encoding': 'utf-8'}
 
-    return {'success': False, 'errors': {'file': ['不支持该文件类型的预览']}}
+    return None
 
 
 def _html_escape(text):
