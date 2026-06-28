@@ -7,3 +7,4 @@ xlrd>=2.0,<3.0
 python-pptx>=1.0,<2.0
 Pillow>=10.0,<13.0
 Pygments>=2.0,<3.0
+markdown>=3.0,<4.0
