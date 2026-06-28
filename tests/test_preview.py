@@ -176,8 +176,9 @@ class TestPreviewAPI:
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data['success'] is True
-        assert data['type'] == 'stream'
-        assert f'/api/files/{file_id}/stream' in data['stream_url']
+        assert data['type'] == 'image'
+        assert data['filename'] == 'test.png'
+        assert f'/api/files/{file_id}/stream' in data['image_url']
 
     def test_stream_image_returns_file(self, app):
         """stream 端点返回图片二进制数据"""
@@ -551,7 +552,8 @@ class TestPreviewPage:
         resp = client.get(f'/preview/{file_id}')
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')
-        assert 'preview-stream' in html
+        assert 'preview-image' in html
+        assert '<img ' in html
         assert f'/api/files/{file_id}/stream' in html
 
     def test_preview_page_nonexistent_returns_404(self, app):
@@ -608,20 +610,24 @@ class TestPreviewPage:
         assert '我的文件.txt' in html
 
     def test_preview_page_stream_has_fallback(self, app):
-        """图片预览页面包含 stream fallback 提示"""
+        """PDF 预览页面包含 stream fallback 提示"""
         client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
         proj_id, folder_id = _seed_project_and_folder(app)
 
-        png_data = (
-            b'\x89PNG\r\n\x1a\n' + b'\x00' * 4 +
-            b'IHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde'
-            + b'\x00' * 4 + b'IDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N'
-            + b'\x00' * 4 + b'IEND\xaeB`\x82'
+        pdf_data = (
+            b'%PDF-1.4\n'
+            b'1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n'
+            b'2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n'
+            b'3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n'
+            b'xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n'
+            b'trailer<</Size 4/Root 1 0 R>>\n'
+            b'startxref\n190\n%%EOF'
         )
-        _upload_file(client, png_data, 'img.png', proj_id, folder_id)
-        file_id = _get_file_id(app, 'img.png')
+        _upload_file(client, pdf_data, 'fallback_test.pdf', proj_id, folder_id)
+        file_id = _get_file_id(app, 'fallback_test.pdf')
 
         resp = client.get(f'/preview/{file_id}')
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')
+        assert 'preview-stream' in html
         assert 'stream-fallback' in html
