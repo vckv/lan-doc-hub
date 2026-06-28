@@ -511,6 +511,20 @@ def get_preview_data(file_id):
             'filename': filename, **metadata,
         }
 
+    if ft == 'Video':
+        return {
+            'success': True, 'type': 'video',
+            'video_url': f'/api/files/{file_id}/stream',
+            'filename': filename, **metadata,
+        }
+
+    if ft == 'Audio':
+        return {
+            'success': True, 'type': 'audio',
+            'audio_url': f'/api/files/{file_id}/stream',
+            'filename': filename, **metadata,
+        }
+
     result = _compute_preview_data(file_id, file_record.file_path, ft, filename, disk_path)
     if result is None:
         return {'success': False, 'errors': {'file': ['不支持该文件类型的预览']}}
@@ -531,7 +545,7 @@ def _compute_preview_data(file_id, file_path, ft, filename, disk_path):
     """
     import csv as csv_module
 
-    if ft == 'TXT' or ft == 'Markdown':
+    if ft == 'TXT':
         content = None
         encoding = 'utf-8'
         for enc in ('utf-8', 'gbk', 'latin-1'):
@@ -550,6 +564,48 @@ def _compute_preview_data(file_id, file_path, ft, filename, disk_path):
         if len(content) > max_chars:
             content = content[:max_chars] + '\n\n... (内容过长，已截断)'
         return {'type': 'text', 'content': content, 'encoding': encoding}
+
+    if ft == 'Markdown':
+        content = None
+        for enc in ('utf-8', 'gbk', 'latin-1'):
+            try:
+                with open(disk_path, 'r', encoding=enc) as fh:
+                    content = fh.read()
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        if content is None:
+            with open(disk_path, 'r', encoding='utf-8', errors='replace') as fh:
+                content = fh.read()
+
+        max_chars = 50000
+        truncated = len(content) > max_chars
+        if truncated:
+            content = content[:max_chars]
+
+        try:
+            import markdown
+            html = markdown.markdown(
+                content,
+                extensions=[
+                    'fenced_code',
+                    'codehilite',
+                    'tables',
+                ],
+                extension_configs={
+                    'codehilite': {
+                        'css_class': 'highlight',
+                        'guess_lang': True,
+                    },
+                },
+            )
+
+            if truncated:
+                html += '<div class="preview-unsupported">预览内容已截断，仅显示前50000字符。完整内容请下载后查看。</div>'
+
+            return {'type': 'html', 'content': html}
+        except Exception:
+            return {'type': 'text', 'content': content + ('\n\n... (内容过长，已截断)' if truncated else ''), 'encoding': 'utf-8'}
 
     if ft == 'Code':
         content = None

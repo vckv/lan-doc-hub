@@ -369,19 +369,22 @@ class TestPreviewAPI:
         assert data.get('filename') == 'script.py'
 
     def test_preview_markdown_file(self, app):
-        """Markdown 文件返回文本预览"""
+        """Markdown 文件渲染为 HTML"""
         client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
         proj_id, folder_id = _seed_project_and_folder(app)
 
-        _upload_file(client, '# 标题\n内容'.encode('utf-8'), 'readme.md', proj_id, folder_id)
+        _upload_file(client, '# 标题\n\n段落内容'.encode('utf-8'), 'readme.md', proj_id, folder_id)
         file_id = _get_file_id(app, 'readme.md')
 
         resp = client.get(f'/api/files/{file_id}/preview')
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data['success'] is True
-        assert data['type'] == 'text'
-        assert '# 标题' in data['content']
+        assert data['type'] == 'html'
+        assert '<h1>' in data['content']
+        assert '标题' in data['content']
+        assert '<p>' in data['content']
+        assert '段落内容' in data['content']
 
     def test_preview_filename_in_response(self, app):
         """预览响应包含 filename 字段"""
@@ -661,6 +664,143 @@ class TestPreviewAPI:
         assert 'pass' in data['content']
         assert 'return' in data['content']
 
+    def test_preview_markdown_code_block_highlighted(self, app):
+        """Markdown 代码块带语法高亮"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        md = '```python\nprint("hello")\n```'
+        _upload_file(client, md.encode('utf-8'), 'code.md', proj_id, folder_id)
+        file_id = _get_file_id(app, 'code.md')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['type'] == 'html'
+        assert 'highlight' in data['content']
+        assert 'print' in data['content']
+        assert 'nb' in data['content']
+
+    def test_preview_markdown_list(self, app):
+        """Markdown 列表渲染为 ul/li"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        md = '- 项目一\n- 项目二\n- 项目三'
+        _upload_file(client, md.encode('utf-8'), 'list.md', proj_id, folder_id)
+        file_id = _get_file_id(app, 'list.md')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['type'] == 'html'
+        assert '<ul>' in data['content']
+        assert '<li>' in data['content']
+        assert '项目一' in data['content']
+        assert '项目二' in data['content']
+
+    def test_preview_markdown_link(self, app):
+        """Markdown 链接渲染为 a 标签"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        md = '[点击这里](https://example.com)'
+        _upload_file(client, md.encode('utf-8'), 'link.md', proj_id, folder_id)
+        file_id = _get_file_id(app, 'link.md')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['type'] == 'html'
+        assert '<a ' in data['content']
+        assert '点击这里' in data['content']
+        assert 'example.com' in data['content']
+
+    def test_preview_video_returns_video_type(self, app):
+        """视频文件返回 video 类型和 video_url"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-video-data', 'demo.mp4', proj_id, folder_id)
+        file_id = _get_file_id(app, 'demo.mp4')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'video'
+        assert data['filename'] == 'demo.mp4'
+        assert f'/api/files/{file_id}/stream' in data['video_url']
+
+    def test_preview_video_avi_returns_video_type(self, app):
+        """AVI 视频文件也返回 video 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-avi-data', 'sample.avi', proj_id, folder_id)
+        file_id = _get_file_id(app, 'sample.avi')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'video'
+
+    def test_preview_audio_returns_audio_type(self, app):
+        """音频文件返回 audio 类型和 audio_url"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-audio-data', 'song.mp3', proj_id, folder_id)
+        file_id = _get_file_id(app, 'song.mp3')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['success'] is True
+        assert data['type'] == 'audio'
+        assert data['filename'] == 'song.mp3'
+        assert f'/api/files/{file_id}/stream' in data['audio_url']
+
+    def test_stream_video_returns_video_mime(self, app):
+        """stream 端点返回视频 MIME 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-video-bytes', 'clip.mp4', proj_id, folder_id)
+        file_id = _get_file_id(app, 'clip.mp4')
+
+        resp = client.get(f'/api/files/{file_id}/stream')
+        assert resp.status_code == 200
+        assert resp.content_type == 'video/mp4'
+        assert resp.data == b'fake-video-bytes'
+
+    def test_stream_audio_returns_audio_mime(self, app):
+        """stream 端点返回音频 MIME 类型"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-audio-bytes', 'track.mp3', proj_id, folder_id)
+        file_id = _get_file_id(app, 'track.mp3')
+
+        resp = client.get(f'/api/files/{file_id}/stream')
+        assert resp.status_code == 200
+        assert resp.content_type == 'audio/mpeg'
+        assert resp.data == b'fake-audio-bytes'
+
+    def test_preview_unsupported_type_returns_error(self, app):
+        """不支持的文件类型返回错误信息"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-zip-data', 'archive.zip', proj_id, folder_id)
+        file_id = _get_file_id(app, 'archive.zip')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert data['success'] is False
+
 
 class TestPreviewPage:
     """预览页面路由测试（新标签页模式）"""
@@ -777,3 +917,35 @@ class TestPreviewPage:
         html = resp.data.decode('utf-8')
         assert 'preview-stream' in html
         assert 'stream-fallback' in html
+
+    def test_preview_page_video(self, app):
+        """视频文件预览页面包含 <video> 标签"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-mp4', 'demo.mp4', proj_id, folder_id)
+        file_id = _get_file_id(app, 'demo.mp4')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert '<video ' in html
+        assert 'controls' in html
+        assert f'/api/files/{file_id}/stream' in html
+        assert 'preview-sidebar' in html
+
+    def test_preview_page_audio(self, app):
+        """音频文件预览页面包含 <audio> 标签"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'fake-mp3', 'song.mp3', proj_id, folder_id)
+        file_id = _get_file_id(app, 'song.mp3')
+
+        resp = client.get(f'/preview/{file_id}')
+        assert resp.status_code == 200
+        html = resp.data.decode('utf-8')
+        assert '<audio ' in html
+        assert 'controls' in html
+        assert f'/api/files/{file_id}/stream' in html
+        assert 'preview-sidebar' in html

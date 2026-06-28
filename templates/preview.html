@@ -23,6 +23,10 @@
         <span class="badge badge-secondary">{{ file_type }}</span>
     {% elif stream_url %}
         <span class="badge badge-secondary">图片 / PDF</span>
+    {% elif type == 'video' %}
+        <span class="badge badge-secondary">视频</span>
+    {% elif type == 'audio' %}
+        <span class="badge badge-secondary">音频</span>
     {% elif type == 'text' %}
         <span class="badge badge-secondary">纯文本 ({{ encoding }})</span>
     {% elif type == 'csv' %}
@@ -41,6 +45,22 @@
         <img src="{{ image_url }}" alt="{{ filename }}" id="preview-img" />
         <div class="zoom-indicator" id="zoom-indicator">100%</div>
         <div class="image-filename">{{ filename }}</div>
+    </div>
+
+{% elif type == 'video' %}
+    <div class="preview-video">
+        <video src="{{ video_url }}" controls>
+            <p>您的浏览器不支持视频播放。请<a href="{{ video_url }}">下载文件</a>后查看。</p>
+        </video>
+        <div class="media-filename">{{ filename }}</div>
+    </div>
+
+{% elif type == 'audio' %}
+    <div class="preview-audio">
+        <audio src="{{ audio_url }}" controls>
+            <p>您的浏览器不支持音频播放。请<a href="{{ audio_url }}">下载文件</a>后查看。</p>
+        </audio>
+        <div class="media-filename">{{ filename }}</div>
     </div>
 
 {% elif stream_url %}

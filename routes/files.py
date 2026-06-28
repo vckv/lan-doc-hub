@@ -234,6 +234,10 @@ def api_stream_file(file_id):
         '.png': 'image/png', '.gif': 'image/gif',
         '.bmp': 'image/bmp', '.webp': 'image/webp',
         '.svg': 'image/svg+xml',
+        '.mp4': 'video/mp4', '.webm': 'video/webm',
+        '.avi': 'video/x-msvideo', '.mov': 'video/quicktime',
+        '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
+        '.flac': 'audio/flac',
     }
     mimetype = mime_map.get(ext, 'application/octet-stream')
 
