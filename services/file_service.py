@@ -462,8 +462,17 @@ def get_preview_data(file_id):
         dict: {'success': bool, 'filename': str, ...}
     """
     from flask import current_app
+    from sqlalchemy.orm import selectinload
 
-    file_record = db.session.get(File, file_id)
+    file_record = db.session.execute(
+        db.select(File)
+        .options(
+            selectinload(File.tags),
+            selectinload(File.uploader),
+            selectinload(File.project),
+        )
+        .where(File.id == file_id)
+    ).scalar_one_or_none()
     if file_record is None:
         return {'success': False, 'errors': {'file_id': ['文件不存在']}}
 
