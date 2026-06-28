@@ -248,4 +248,6 @@ def api_stream_file(file_id):
         mimetype=mimetype,
         as_attachment=False,
         download_name=download_name,
+        conditional=True,
+        max_age=3600,
     )
