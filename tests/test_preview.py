@@ -640,6 +640,7 @@ class TestPreviewPage:
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')
         assert 'preview-image' in html
+        assert 'image-viewer' in html
         assert '<img ' in html
         assert f'/api/files/{file_id}/stream' in html
 

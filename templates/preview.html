@@ -61,17 +61,44 @@
             justify-content: center;
             min-height: 50vh;
             padding: 20px 0;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+        }
+        .preview-image.grabbing {
+            cursor: grabbing;
         }
         .preview-image img {
             max-width: 100%;
             height: auto;
             border-radius: 4px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transform-origin: center center;
+            transition: transform 0.05s ease-out;
+            user-select: none;
+            pointer-events: auto;
+        }
+        .preview-image .zoom-indicator {
+            position: absolute;
+            bottom: 12px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .preview-image .zoom-indicator.visible {
+            opacity: 1;
         }
         .preview-image .image-filename {
             margin-top: 12px;
             font-size: 13px;
             color: #999;
+            user-select: none;
         }
 
         .preview-table-wrap {
@@ -236,8 +263,9 @@
     <div class="preview-main">
 
 {% if type == 'image' %}
-    <div class="preview-image">
-        <img src="{{ image_url }}" alt="{{ filename }}" />
+    <div class="preview-image" id="image-viewer">
+        <img src="{{ image_url }}" alt="{{ filename }}" id="preview-img" />
+        <div class="zoom-indicator" id="zoom-indicator">100%</div>
         <div class="image-filename">{{ filename }}</div>
     </div>
 
@@ -337,6 +365,94 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+(function() {
+    var container = document.getElementById('image-viewer');
+    var img = document.getElementById('preview-img');
+    var indicator = document.getElementById('zoom-indicator');
+    if (!container || !img) return;
+
+    var scale = 1;
+    var minScale = 0.1;
+    var maxScale = 10;
+    var translateX = 0;
+    var translateY = 0;
+
+    var isPanning = false;
+    var startX = 0;
+    var startY = 0;
+    var startTranslateX = 0;
+    var startTranslateY = 0;
+
+    function applyTransform() {
+        img.style.transform = 'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
+    }
+
+    function updateIndicator() {
+        indicator.textContent = Math.round(scale * 100) + '%';
+        indicator.classList.add('visible');
+        clearTimeout(indicator._timer);
+        indicator._timer = setTimeout(function() {
+            indicator.classList.remove('visible');
+        }, 1000);
+    }
+
+    container.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? -0.1 : 0.1;
+        var newScale = scale + delta;
+        newScale = Math.max(minScale, Math.min(maxScale, newScale));
+        if (newScale === scale) return;
+
+        var rect = container.getBoundingClientRect();
+        var mouseX = e.clientX - rect.left;
+        var mouseY = e.clientY - rect.top;
+
+        var scaleFactor = newScale / scale;
+        translateX = mouseX - (mouseX - translateX) * scaleFactor;
+        translateY = mouseY - (mouseY - translateY) * scaleFactor;
+
+        scale = newScale;
+        applyTransform();
+        updateIndicator();
+    }, { passive: false });
+
+    container.addEventListener('mousedown', function(e) {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        isPanning = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startTranslateX = translateX;
+        startTranslateY = translateY;
+        container.classList.add('grabbing');
+    });
+
+    window.addEventListener('mousemove', function(e) {
+        if (!isPanning) return;
+        translateX = startTranslateX + (e.clientX - startX);
+        translateY = startTranslateY + (e.clientY - startY);
+        applyTransform();
+    });
+
+    window.addEventListener('mouseup', function(e) {
+        if (!isPanning) return;
+        isPanning = false;
+        container.classList.remove('grabbing');
+    });
+
+    container.addEventListener('dblclick', function() {
+        scale = 1;
+        translateX = 0;
+        translateY = 0;
+        applyTransform();
+        indicator.textContent = '100%';
+        indicator.classList.add('visible');
+        setTimeout(function() { indicator.classList.remove('visible'); }, 1000);
+    });
+})();
+</script>
 
 </body>
 </html>
