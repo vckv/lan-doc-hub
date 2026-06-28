@@ -531,7 +531,7 @@ def _compute_preview_data(file_id, file_path, ft, filename, disk_path):
     """
     import csv as csv_module
 
-    if ft == 'TXT' or ft == 'Code' or ft == 'Markdown':
+    if ft == 'TXT' or ft == 'Markdown':
         content = None
         encoding = 'utf-8'
         for enc in ('utf-8', 'gbk', 'latin-1'):
@@ -550,6 +550,45 @@ def _compute_preview_data(file_id, file_path, ft, filename, disk_path):
         if len(content) > max_chars:
             content = content[:max_chars] + '\n\n... (内容过长，已截断)'
         return {'type': 'text', 'content': content, 'encoding': encoding}
+
+    if ft == 'Code':
+        content = None
+        for enc in ('utf-8', 'gbk', 'latin-1'):
+            try:
+                with open(disk_path, 'r', encoding=enc) as fh:
+                    content = fh.read()
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        if content is None:
+            with open(disk_path, 'r', encoding='utf-8', errors='replace') as fh:
+                content = fh.read()
+
+        max_chars = 50000
+        truncated = len(content) > max_chars
+        if truncated:
+            content = content[:max_chars]
+
+        try:
+            from pygments import highlight
+            from pygments.lexers import get_lexer_for_filename
+            from pygments.formatters import HtmlFormatter
+
+            lexer = get_lexer_for_filename(filename, stripall=False)
+            formatter = HtmlFormatter(
+                style='friendly',
+                linenos='table',
+                cssclass='highlight',
+                wrapcode=True,
+            )
+            html = highlight(content, lexer, formatter)
+
+            if truncated:
+                html += '<div class="preview-unsupported">预览内容已截断，仅显示前50000字符。完整内容请下载后查看。</div>'
+
+            return {'type': 'html', 'content': html}
+        except Exception:
+            return {'type': 'text', 'content': content + ('\n\n... (内容过长，已截断)' if truncated else ''), 'encoding': 'utf-8'}
 
     if ft == 'CSV':
         try:

@@ -350,7 +350,7 @@ class TestPreviewAPI:
         assert 'Score' in data['content']
 
     def test_preview_code_file(self, app):
-        """代码文件返回文本预览"""
+        """代码文件返回语法高亮 HTML 预览"""
         client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
         proj_id, folder_id = _seed_project_and_folder(app)
 
@@ -361,8 +361,11 @@ class TestPreviewAPI:
         assert resp.status_code == 200
         data = json.loads(resp.data)
         assert data['success'] is True
-        assert data['type'] == 'text'
-        assert 'print("hello")' in data['content']
+        assert data['type'] == 'html'
+        assert 'print' in data['content']
+        assert 'hello' in data['content']
+        assert '&quot;hello&quot;' in data['content']
+        assert 'highlight' in data['content']
         assert data.get('filename') == 'script.py'
 
     def test_preview_markdown_file(self, app):
@@ -604,6 +607,59 @@ class TestPreviewAPI:
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')
         assert 'PDF' in html
+
+    def test_preview_js_code_highlighted(self, app):
+        """JavaScript 文件返回语法高亮 HTML"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'const x = 1;', 'app.js', proj_id, folder_id)
+        file_id = _get_file_id(app, 'app.js')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['type'] == 'html'
+        assert 'highlight' in data['content']
+        assert 'const' in data['content']
+
+    def test_preview_html_code_highlighted(self, app):
+        """HTML 文件返回语法高亮"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        _upload_file(client, b'<div>test</div>', 'index.html', proj_id, folder_id)
+        file_id = _get_file_id(app, 'index.html')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['type'] == 'html'
+        assert 'highlight' in data['content']
+        assert '&lt;' in data['content']
+        assert 'div' in data['content']
+        assert 'test' in data['content']
+        assert '&gt;' in data['content']
+
+    def test_preview_code_with_linenos(self, app):
+        """代码文件包含行号"""
+        client = _login_as(app, 'admin', 'Admin@Pass1', 'admin')
+        proj_id, folder_id = _seed_project_and_folder(app)
+
+        src = '\n'.join(['def a():', '    pass', '', 'def b():', '    return 1', ''])
+        _upload_file(client, src.encode('utf-8'), 'multi.py', proj_id, folder_id)
+        file_id = _get_file_id(app, 'multi.py')
+
+        resp = client.get(f'/api/files/{file_id}/preview')
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['type'] == 'html'
+        assert 'linenos' in data['content']
+        assert 'def' in data['content']
+        assert 'a' in data['content']
+        assert 'b' in data['content']
+        assert 'pass' in data['content']
+        assert 'return' in data['content']
 
 
 class TestPreviewPage:
