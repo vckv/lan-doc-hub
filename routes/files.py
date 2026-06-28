@@ -238,10 +238,6 @@ def api_stream_file(file_id):
     mimetype = mime_map.get(ext, 'application/octet-stream')
 
     download_name = file_record.original_filename
-    try:
-        download_name.encode('ascii')
-    except UnicodeEncodeError:
-        download_name = file_record.original_filename.encode('utf-8')
 
     return send_file(
         disk_path,
