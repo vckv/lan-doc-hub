@@ -59,11 +59,14 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 50vh;
-            padding: 20px 0;
+            min-height: 70vh;
             overflow: hidden;
             position: relative;
             cursor: grab;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            margin: 8px 0;
         }
         .preview-image.grabbing {
             cursor: grabbing;
@@ -172,6 +175,54 @@
             border-left: 1px solid #dee2e6;
             padding: 16px 12px;
             background: #f8f9fa;
+            transition: width 0.25s ease, padding 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .preview-sidebar.collapsed {
+            width: 36px;
+            padding: 16px 6px;
+        }
+        .preview-sidebar .sidebar-toggle {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 24px;
+            text-align: center;
+            padding: 0;
+            border-radius: 4px;
+        }
+        .preview-sidebar .sidebar-toggle:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+        .preview-sidebar.collapsed .sidebar-toggle {
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .preview-sidebar .sidebar-collapsed-label {
+            display: none;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 40px;
+            white-space: nowrap;
+            letter-spacing: 2px;
+        }
+        .preview-sidebar.collapsed .sidebar-collapsed-label {
+            display: block;
+        }
+        .preview-sidebar.collapsed .sidebar-content {
+            display: none;
         }
 
         .preview-sidebar h6 {
@@ -312,59 +363,86 @@
 {% endif %}
 
     </div>
-    <div class="preview-sidebar">
-        <h6>文件信息</h6>
-        {% if metadata %}
-            <div class="preview-meta-item">
-                <div class="meta-label">文件大小</div>
-                <div class="meta-value">{{ metadata.file_size }}</div>
-            </div>
-            <div class="preview-meta-item">
-                <div class="meta-label">文件类型</div>
-                <div class="meta-value">{{ metadata.file_type }}</div>
-            </div>
-            {% if metadata.file_number %}
-            <div class="preview-meta-item">
-                <div class="meta-label">文件编号</div>
-                <div class="meta-value" style="font-size:0.78rem;font-family:monospace">{{ metadata.file_number }}</div>
-            </div>
-            {% endif %}
-            <div class="preview-meta-item">
-                <div class="meta-label">版本</div>
-                <div class="meta-value">{{ metadata.version_number }}{% if metadata.version_note %} — {{ metadata.version_note[:20] }}{% endif %}</div>
-            </div>
-            {% if metadata.project_model %}
-            <div class="preview-meta-item">
-                <div class="meta-label">所属项目</div>
-                <div class="meta-value">{{ metadata.project_model }} — {{ metadata.project_name }}</div>
-            </div>
-            {% endif %}
-            <div class="preview-meta-item">
-                <div class="meta-label">上传者</div>
-                <div class="meta-value">{{ metadata.uploader_name }}</div>
-            </div>
-            <div class="preview-meta-item">
-                <div class="meta-label">上传时间</div>
-                <div class="meta-value" style="font-size:0.75rem">{{ metadata.created_at }}</div>
-            </div>
-            {% if metadata.tags %}
-            <div class="preview-meta-item">
-                <div class="meta-label">标签</div>
-                <div class="preview-meta-tags">
-                    {% for tag in metadata.tags %}
-                    <span class="preview-meta-tag">
-                        <span class="tag-dot" style="background:{{ tag.color }}"></span>
-                        {{ tag.name }}
-                    </span>
-                    {% endfor %}
+    <div class="preview-sidebar" id="preview-sidebar">
+        <button class="sidebar-toggle" id="sidebar-toggle-btn" title="收起侧边栏">◀</button>
+        <span class="sidebar-collapsed-label">文件信息</span>
+        <div class="sidebar-content">
+            <h6>文件信息</h6>
+            {% if metadata %}
+                <div class="preview-meta-item">
+                    <div class="meta-label">文件大小</div>
+                    <div class="meta-value">{{ metadata.file_size }}</div>
                 </div>
-            </div>
+                <div class="preview-meta-item">
+                    <div class="meta-label">文件类型</div>
+                    <div class="meta-value">{{ metadata.file_type }}</div>
+                </div>
+                {% if metadata.file_number %}
+                <div class="preview-meta-item">
+                    <div class="meta-label">文件编号</div>
+                    <div class="meta-value" style="font-size:0.78rem;font-family:monospace">{{ metadata.file_number }}</div>
+                </div>
+                {% endif %}
+                <div class="preview-meta-item">
+                    <div class="meta-label">版本</div>
+                    <div class="meta-value">{{ metadata.version_number }}{% if metadata.version_note %} — {{ metadata.version_note[:20] }}{% endif %}</div>
+                </div>
+                {% if metadata.project_model %}
+                <div class="preview-meta-item">
+                    <div class="meta-label">所属项目</div>
+                    <div class="meta-value">{{ metadata.project_model }} — {{ metadata.project_name }}</div>
+                </div>
+                {% endif %}
+                <div class="preview-meta-item">
+                    <div class="meta-label">上传者</div>
+                    <div class="meta-value">{{ metadata.uploader_name }}</div>
+                </div>
+                <div class="preview-meta-item">
+                    <div class="meta-label">上传时间</div>
+                    <div class="meta-value" style="font-size:0.75rem">{{ metadata.created_at }}</div>
+                </div>
+                {% if metadata.tags %}
+                <div class="preview-meta-item">
+                    <div class="meta-label">标签</div>
+                    <div class="preview-meta-tags">
+                        {% for tag in metadata.tags %}
+                        <span class="preview-meta-tag">
+                            <span class="tag-dot" style="background:{{ tag.color }}"></span>
+                            {{ tag.name }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <p class="text-muted" style="font-size:0.8rem">暂无元数据</p>
             {% endif %}
-        {% else %}
-            <p class="text-muted" style="font-size:0.8rem">暂无元数据</p>
-        {% endif %}
+        </div>
     </div>
 </div>
+
+<script>
+(function() {
+    var sidebar = document.getElementById('preview-sidebar');
+    var btn = document.getElementById('sidebar-toggle-btn');
+    if (!sidebar || !btn) return;
+
+    var collapsed = false;
+
+    btn.addEventListener('click', function() {
+        collapsed = !collapsed;
+        if (collapsed) {
+            sidebar.classList.add('collapsed');
+            btn.innerHTML = '▶';
+            btn.title = '展开侧边栏';
+        } else {
+            sidebar.classList.remove('collapsed');
+            btn.innerHTML = '◀';
+            btn.title = '收起侧边栏';
+        }
+    });
+})();
+</script>
 
 <script>
 (function() {

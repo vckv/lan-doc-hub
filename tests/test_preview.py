@@ -643,6 +643,8 @@ class TestPreviewPage:
         assert 'image-viewer' in html
         assert '<img ' in html
         assert f'/api/files/{file_id}/stream' in html
+        assert 'preview-sidebar' in html
+        assert 'sidebar-toggle-btn' in html
 
     def test_preview_page_nonexistent_returns_404(self, app):
         """不存在的文件预览页面返回 404"""
